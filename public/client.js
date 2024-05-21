@@ -3,9 +3,6 @@ import { header } from './templates/header.mjs'
 import { dashboardTemplate } from './templates/dashboard.mjs'
 import { setListTemplate } from './templates/set-list.mjs'
 
-const uri = '127.0.0.1:27017'
-const dbName = 'mps'
-
 const socket = io()
 const client = feathers()
 client.configure(feathers.socketio(socket))
@@ -18,30 +15,30 @@ var settings = {
   timeout: 500,
   tcgcsv_last_updated: 0
 }
-
 var userSettings = {
   theme: 'synthwave'
 }
-
 var timeout = null
 
 const cacheExchangeRate = async () => {
-  let toReturn = null
-  await axios
-    .get('https://openexchangerates.org/api/latest.json?app_id=3b0b937b4c3a4a5f8f8ecf074aa0b06e')
-    .then((data) => {
-      if (data.status == 200) {
-        toReturn = data.data.rates.CAD
-      }
-    })
-  return toReturn
+  try {
+    const response = await axios.get(
+      'https://openexchangerates.org/api/latest.json?app_id=3b0b937b4c3a4a5f8f8ecf074aa0b06e'
+    )
+    if (response.status === 200) {
+      return response.data.rates.CAD
+    }
+  } catch (error) {
+    console.error('Error fetching exchange rate:', error)
+  }
+  return null
 }
-
 const CAD = await cacheExchangeRate()
 
 /////////////////////
 /* Event Listeners */
 /////////////////////
+
 const addEventListener = (selector, event, handler) => {
   document.addEventListener(event, async (ev) => {
     if (ev.target.closest(selector)) {
@@ -49,11 +46,18 @@ const addEventListener = (selector, event, handler) => {
     }
   })
 }
+// Debounce function to limit the rate of function calls
+const debounce = (func, wait) => {
+  let timeout
+  return (...args) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func.apply(this, args), wait)
+  }
+}
 // "Signup and login" button click handler
 addEventListener('#signup', 'click', async () => {
   // For signup, create a new user and then log them in
   const credentials = getCredentials()
-
   // First create the user
   await client.service('users').create(credentials)
   // If successful log them in
@@ -64,20 +68,11 @@ addEventListener('#login', 'click', async () => {
   const user = getCredentials()
   await login(user)
 })
-
 addEventListener('#toggle-drawer', 'click', async () => {
-  var x = document.getElementById('drawer')
-  if (x.style.display === 'none') {
-    x.style.display = 'block'
-  } else {
-    x.style.display = 'none'
-  }
+  const drawer = document.getElementById('drawer')
+  drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none'
 })
-
-addEventListener('#home', 'click', async (e) => {
-  showDashboard()
-})
-
+addEventListener('#home', 'click', () => showDashboard())
 // addEventListener('#search', 'change', (e) => {
 //   clearTimeout(timeout)
 //   timeout = setTimeout(function () {
@@ -85,92 +80,60 @@ addEventListener('#home', 'click', async (e) => {
 //   }, settings.timeout)
 // })
 addEventListener('.show-games-list', 'click', async (e) => {
-  showGameList(settings.limit, e.srcElement.dataset.skip)
+  showGameList(settings.limit, e.target.dataset.skip)
 })
-
 addEventListener('.show-set-list', 'click', async (e) => {
-  showSetList(e.srcElement.dataset.id)
+  showSetList(e.target.dataset.id)
 })
-
 addEventListener('.show-product-list', 'click', async (e) => {
-  showProductList(e.srcElement.dataset.scope, e.srcElement.dataset.id, settings.limit)
+  showProductList(e.target.dataset.scope, e.target.dataset.id, settings.limit)
 })
-
 addEventListener('.update-data', 'click', async (e) => {
-  document.getElementById('updating').toggleAttribute('hidden')
-  var startTime = Date.now()
-  console.log(`Starting`)
+  const startTime = Date.now()
+  const updatingElement = document.getElementById('updating')
+  updatingElement.toggleAttribute('hidden')
   await fetchGames()
   await fetchSets()
   await fetchProducts()
-  document.getElementById('updating').toggleAttribute('hidden')
-  console.log(`Done. Took ${(Date.now() - startTime) / 60}`)
+  updatingElement.toggleAttribute('hidden')
+  console.log(`Done Updating. It took ${(Date.now() - startTime) / 1000} seconds`)
 })
-
 addEventListener('.set-list-checkbox', 'click', async (e) => {
-  if (e.srcElement.checked) {
-    client.service('sets').patch(e.srcElement.id, {
-      enabled: true
-    })
-  } else {
-    client.service('sets').patch(e.srcElement.id, {
-      enabled: false
-    })
-  }
+  const enabled = e.target.checked
+  await client.service('sets').patch(e.target.id, {
+    enabled
+  })
 })
-
 addEventListener('.game-list-checkbox', 'click', async (e) => {
-  if (e.srcElement.checked) {
-    client.service('games').patch(e.srcElement.id, {
-      enabled: true
-    })
-  } else {
-    client.service('games').patch(e.srcElement.id, {
-      enabled: false
-    })
-  }
+  const enabled = e.target.checked
+  await client.service('games').patch(e.target.id, {
+    enabled
+  })
 })
-
 addEventListener('.selling-checkbox', 'click', async (e) => {
-  if (e.srcElement.checked) {
-    client.service('products').patch(e.srcElement.id, {
-      selling: {
-        enabled: true,
-        quantity: Number(e.srcElement.closest('td').nextElementSibling.firstElementChild.value)
-      }
-    })
-  } else {
-    client.service('products').patch(e.srcElement.id, {
-      selling: {
-        enabled: false,
-        quantity: Number(e.srcElement.closest('td').nextElementSibling.firstElementChild.value)
-      }
-    })
-  }
+  const enabled = e.target.checked
+  const quantity = Number(e.target.closest('td').nextElementSibling.firstElementChild.value)
+  await client.service('products').patch(e.target.id, {
+    selling: {
+      enabled,
+      quantity
+    }
+  })
 })
 addEventListener('.buying-checkbox', 'click', async (e) => {
-  if (e.srcElement.checked) {
-    client.service('products').patch(e.srcElement.id, {
-      buying: {
-        enabled: true,
-        quantity: Number(e.srcElement.closest('td').nextElementSibling.firstElementChild.value)
-      }
-    })
-  } else {
-    client.service('products').patch(e.srcElement.id, {
-      buying: {
-        enabled: true,
-        quantity: Number(e.srcElement.closest('td').nextElementSibling.firstElementChild.value)
-      }
-    })
-  }
+  const enabled = e.target.checked
+  const quantity = Number(e.target.closest('td').nextElementSibling.firstElementChild.value)
+  await client.service('products').patch(e.target.id, {
+    buying: {
+      enabled,
+      quantity
+    }
+  })
 })
 addEventListener('.paginate-button', 'click', async (e) => {
-  let scope = e.srcElement.dataset.scope
-  let id = e.srcElement.dataset.id
-  let skip = e.srcElement.dataset.skip
-  let limit = settings.limit
-
+  const { scope, id, skip } = e.target.dataset
+  const limit = 10
+  // const limit = settings.limit
   if (scope === 'set') {
     showSetList(id, limit, skip)
   } else if (scope === 'games') {
@@ -181,105 +144,82 @@ addEventListener('.paginate-button', 'click', async (e) => {
     showProductList('set', id, limit, skip)
   }
 })
-
-addEventListener('#buy-list-percentage', 'change', (e) => {
-  clearTimeout(timeout)
-
-  timeout = setTimeout(function () {
-    setBuyListPercentage(e.srcElement)
+addEventListener(
+  '#buy-list-percentage',
+  'change',
+  debounce((e) => {
+    setBuyListPercentage(e.target)
   }, settings.timeout)
-})
-
-addEventListener('.selling-qty-input', 'change', (e) => {
-  clearTimeout(timeout)
-
-  timeout = setTimeout(function () {
-    patchSellingQty(e.srcElement)
+)
+addEventListener(
+  '.selling-qty-input',
+  'change',
+  debounce((e) => {
+    patchSellingQty(e.target)
   }, settings.timeout)
-})
-addEventListener('.buying-qty-input', 'change', (e) => {
-  clearTimeout(timeout)
-
-  timeout = setTimeout(function () {
-    patchBuyingQty(e.srcElement)
+)
+addEventListener(
+  '.buying-qty-input',
+  'change',
+  debounce((e) => {
+    patchBuyingQty(e.target)
   }, settings.timeout)
-})
-addEventListener('#import-csv', 'change', (e) => {
+)
+addEventListener('#import-csv', 'change', () => {
   importLightspeedCSV()
 })
-
-addEventListener('#settings', 'click', (e) => {
+addEventListener('#settings', 'click', () => {
   showSettings()
 })
-
 addEventListener('.export', 'click', (e) => {
-  if (e.srcElement.dataset.scope === 'set') {
-    exportSellingBySet(e.srcElement.dataset.id, 5000, 0)
-  } else if (e.srcElement.dataset.scope === 'game') {
-    exportSellingByGame(e.srcElement.dataset.id, 5000, 0)
+  const { scope, id } = e.target.dataset
+  if (scope === 'set') {
+    exportSellingBySet(id, 5000, 0)
+  } else if (scope === 'game') {
+    exportSellingByGame(id, 5000, 0)
   }
 })
 ///////////
 /* Shows */
 ///////////
-
 const showHeader = () => {
-  document.getElementsByTagName('body')[0].insertAdjacentHTML('afterbegin', header)
+  document.body.insertAdjacentHTML('afterbegin', header)
 }
-
 const showLogin = () => {
   document.getElementById('app').innerHTML = loginTemplate()
 }
-
 const showDashboard = async () => {
   document.getElementById('app').innerHTML = dashboardTemplate()
-
   //populate game list
-  let container = document.getElementById('list')
-  let tableHead = document.getElementById('table-head')
+  const container = document.getElementById('list')
+  const tableHead = document.getElementById('table-head')
   tableHead.innerHTML += `
-    <th scope='col' class='px-6 py-3'>
-        Name
-    </th>
-    <th scope='col' class='px-6 py-3'>
-        Manage Sets
-    </th>
-    <th scope='col' class='px-6 py-3'>
-        Manage Products
-    </th>`
-
-  await getEnabledGames().then((data) => {
-    let enabledGames = data.data
-    enabledGames.forEach((game) => {
-      container.innerHTML += `
-        <th scope='row'>
-            <div class='flex items-center gap-3'>
-                    <div class='max-h-24 rounded'>
-                        <img class='max-h-16' src='${game.logo}' alt='${game.name}'/>
-                    </div>
-           
-                <div>
-                    <div class='font-bold'>${game.name}</div>
-                </div>
-            </div>
-        </th>
-        <td>
-            <button data-id='${game._id}' class="show-set-list btn">
-                Manage Sets
-            </button>
-        </td>
-        <td>
-            <button data-id='${game._id}' data-scope='game' class="show-product-list btn">
-                Manage Products
-            </button>
-       </td>
-      `
-    })
-
-    paginate('game', null, data.total, data.limit, data.skip)
+    <th scope='col' class='px-6 py-3'>Name</th>
+    <th scope='col' class='px-6 py-3'>Manage Sets</th>
+    <th scope='col' class='px-6 py-3'>Manage Products</th>`
+  const data = await getEnabledGames()
+  const enabledGames = data.data
+  enabledGames.forEach((game) => {
+    container.innerHTML += `
+      <th scope='row'>
+        <div class='flex items-center gap-3'>
+          <div class='max-h-24 rounded'>
+            <img class='max-h-16' src='${game.logo}' alt='${game.name}'/>
+          </div>
+          <div>
+            <div class='font-bold'>${game.name}</div>
+          </div>
+        </div>
+      </th>
+      <td>
+        <button data-id='${game._id}' class="show-set-list btn">Manage Sets</button>
+      </td>
+      <td>
+        <button data-id='${game._id}' data-scope='game' class="show-product-list btn">Manage Products</button>
+      </td>`
   })
+  paginate('game', null, data.total, data.limit, data.skip)
 }
-
 const showSettings = () => {
   document.getElementById('app').innerHTML = `
     <section>
@@ -289,354 +229,174 @@ const showSettings = () => {
         <input id="buy-list-percentage" type="number" class="input" value="${settings.buylist_percentage * 100}" />
       </label>
     </section>
-  
-  
   `
 }
-
 const showGameList = async (limit, skip) => {
   document.getElementById('app').innerHTML = setListTemplate
   document.getElementById('search').dataset.scope = 'game'
   document.getElementById('table-head').innerHTML += `
-    <th scope='col' class='px-6 py-3'>
-          Enabled
-        </th>
-        <th scope='col' class='px-6 py-3'>
-          Game
-        </th>
-  `
-  await getAllGames(limit, skip).then((data) => {
-    if (data.total != 0) {
-      console.log(data)
-      for (var i = 0; i < data.data.length; i++) {
-        document.getElementById('list').innerHTML += `<tr>
-      <td>
-        
-          <input id="${data.data[i]._id}" class="toggle toggle-success game-list-checkbox" type="checkbox" ${data.data[i].enabled == true ? 'checked' : ''} >
-          <label for="${data.data[i]._id}" class="sr-only">checkbox</label>
-        
-      </td>
-      <th scope='row' class="px-6 py-4 font-medium whitespace-nowrap text-white">${data.data[i].name}</th>
-    </tr>`
-      }
-      paginate('games', null, data.total, data.limit, data.skip)
-    }
-  })
+    <th scope='col' class='px-6 py-3'>Enabled</th>
+    <th scope='col' class='px-6 py-3'>Game</th>`
+  const data = await getAllGames(limit, skip)
+  if (data.total !== 0) {
+    data.data.forEach((game) => {
+      document.getElementById('list').innerHTML += `
+        <tr>
+          <td>
+            <input id="${game._id}" class="toggle toggle-success game-list-checkbox" type="checkbox" ${game.enabled ? 'checked' : ''}>
+            <label for="${game._id}" class="sr-only">checkbox</label>
+          </td>
+          <th scope='row' class="px-6 py-4 font-medium whitespace-nowrap text-white">${game.name}</th>
+        </tr>`
+    })
+    paginate('games', null, data.total, data.limit, data.skip)
+  }
 }
-
 const showSetList = async (gameId, limit, skip) => {
   document.getElementById('app').innerHTML = setListTemplate
   document.getElementById('search').dataset.scope = 'set'
   document.getElementById('search').dataset.id = gameId
-
   document.getElementById('table-head').innerHTML += `
-    <th scope='col' class='px-6 py-3'>
-          Enabled
-        </th>
-        <th scope='col' class='px-6 py-3'>
-          Set Name
-        </th>
-        <th scope='col' class='px-6 py-3'>
-        Manage Products
-        </th>
-  `
-
-  await getAllSetsForGame(gameId, limit, skip).then((data) => {
-    if (data.total != 0) {
-      for (var i = 0; i < data.data.length; i++) {
-        document.getElementById('list').innerHTML += `<tr>
+    <th scope='col' class='px-6 py-3'>Enabled</th>
+    <th scope='col' class='px-6 py-3'>Set Name</th>
+    <th scope='col' class='px-6 py-3'>Manage Products</th>`
+  const data = await getAllSetsForGame(gameId, limit, skip)
+  if (data.total !== 0) {
+    data.data.forEach((set) => {
+      document.getElementById('list').innerHTML += `
+        <tr>
           <td>
-              <input id="${data.data[i]._id}" class="toggle toggle-success set-list-checkbox" type="checkbox" ${data.data[i].enabled == true ? 'checked' : ''}>
-              <label for="${data.data[i]._id}" class="sr-only">checkbox</label>
+            <input id="${set._id}" class="toggle toggle-success set-list-checkbox" type="checkbox" ${set.enabled ? 'checked' : ''}>
+            <label for="${set._id}" class="sr-only">checkbox</label>
           </td>
-          <th scope='row'>${data.data[i].name}</th>
-          <td ><button class="btn show-product-list" data-scope="set" data-id="${data.data[i]._id}">Add/Remove Products</button></td>
+          <th scope='row'>${set.name}</th>
+          <td><button class="btn show-product-list" data-scope="set" data-id="${set._id}">Add/Remove Products</button></td>
         </tr>`
-      }
-
-      paginate('set', gameId, data.total, data.limit, data.skip)
-    }
-  })
+    })
+    paginate('set', gameId, data.total, data.limit, data.skip)
+  }
 }
-
 const showProductList = async (scope, id, limit, skip) => {
-  console.log(`limit: ${limit}, skip: ${skip}`)
+  document.getElementById('list').innerHTML = ''
   document.getElementById('search').dataset.scope = scope
   document.getElementById('search').dataset.id = id
-
   document.getElementById('app').innerHTML =
     `<button class='export' data-scope=${scope} data-id=${id}>Download CSV</button>`
   document.getElementById('app').innerHTML += setListTemplate
-
   document.getElementById('table-head').innerHTML += `
-    <th scope='col' class='px-6 py-3'>
-      Selling
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Qty. On Hand
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Image
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Product Name
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Collector Number
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Market Price
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Retail Price
-    </th>
-    <th scope='col class='px-6 py-3'>
-      Buying
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Buy Qty.
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Buy List Price
-    </th>
-    <th scope='col' class='px-6 py-3'>
-      Lightspeed System ID
-    </th>
-  `
-  if (scope === 'game') {
-    await getProductsForGame(id, limit, skip).then((data) => {
-      if (data.total != 0) {
-        let products = data.data
-        products.forEach((product) => {
-          showProduct(product)
-        })
-      }
-
-      paginate('products-for-game', id, data.total, data.limit, data.skip)
-    })
-  } else if (scope == 'set') {
-    await getProductsForSet(id, limit, skip).then((data) => {
-      if (data.total != 0) {
-        let products = data.data
-        products.forEach((product) => {
-          showProduct(product)
-        })
-      }
-      paginate('products-for-set', id, data.total, data.limit, data.skip)
-    })
+    <th scope='col' class='px-6 py-3'>Selling</th>
+    <th scope='col' class='px-6 py-3'>Qty. On Hand</th>
+    <th scope='col' class='px-6 py-3'>Image</th>
+    <th scope='col' class='px-6 py-3'>Product Name</th>
+    <th scope='col' class='px-6 py-3'>Collector Number</th>
+    <th scope='col' class='px-6 py-3'>Market Price</th>
+    <th scope='col' class='px-6 py-3'>Retail Price</th>
+    <th scope='col' class='px-6 py-3'>Buying</th>
+    <th scope='col' class='px-6 py-3'>Buy Qty.</th>
+    <th scope='col' class='px-6 py-3'>Buy List Price</th>
+    <th scope='col' class='px-6 py-3'>Lightspeed System ID</th>`
+  const data =
+    scope === 'game' ? await getProductsForGame(id, limit, skip) : await getProductsForSet(id, limit, skip)
+  if (data.total !== 0) {
+    data.data.forEach(showProduct)
+    paginate(`products-for-${scope}`, id, data.total, data.limit, data.skip)
   }
 }
-
 const showProduct = (product) => {
-  let USDollar = new Intl.NumberFormat('en-US', {
+  const USDollar = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD'
   })
-  console.log(settings.buylist_percentage)
-  let marketPrice = Object.keys(product.market_price[0].market_price)[0]
+  const marketPrice = Object.keys(product.market_price[0].market_price)[0]
   document.getElementById('list').innerHTML += `
-                    <tr>
-
-                        <td>
-                            <input id="${product._id}" class="toggle toggle-success selling-checkbox" type="checkbox" ${product.selling.enabled == true ? 'checked' : ''}>
-                            <label for="${product._id}" class="sr-only">checkbox</label>
-                        </td>
-                        <td>
-                            <input data-id="${product._id}" type="number" class="selling-qty-input w-24 input input-bordered input-md" value="${product.selling.quantity}" />
-                        </td>
-                        <td>
-                            <img class="max-h-24 hover:scale-[4] transition-all duration-500 cursor-pointer" src="${product.image_url.slice(6)}"/>
-                        </td>
-                        <th scope='row'>
-                            ${product.name} 
-                        </th>
-                        <td> 
-                        ${product.collector_number ? product.collector_number : ''}
-                    </td>
-                        <td>${USDollar.format(getExchangeRate(product.market_price[0].market_price[marketPrice]))} </td>
-                        <td> ${USDollar.format(retailPrice(getExchangeRate(product.market_price[0].market_price[marketPrice])))} </td>
-
-                        <td>
-                            <input id="${product._id}" class="toggle toggle-success buying-checkbox" type="checkbox" ${product.buying.enabled == true ? 'checked' : ''}>
-                            <label for="${product._id}" class="sr-only">checkbox</label> 
-                        </td>
-                        <td>
-                        <input data-id="${product._id}" type="number" class="buying-qty-input w-24 input input-bordered input-md" value="${product.buying.quantity}" />
-                    </td>
-                        <td>${USDollar.format(getExchangeRate(settings.buylist_percentage * product.market_price[0].market_price[marketPrice]))} </td>
-                        <td>${product.pos_id ? product.pos_id : 'N/A'} </td>
-                       
-                    </tr>`
-
-  // <td>$${(product.marketPrice.normal) ? product.marketPrice.normal : (product.marketPrice.foil) ? product.marketPrice.foil : (product.marketPrice.reverseFoil) ? product.marketPrice.reverseFoil : ""} </td>
+    <tr>
+      <td>
+        <input id="${product._id}" class="toggle toggle-success selling-checkbox" type="checkbox" ${product.selling.enabled ? 'checked' : ''}>
+        <label for="${product._id}" class="sr-only">checkbox</label>
+      </td>
+      <td>
+        <input data-id="${product._id}" type="number" class="selling-qty-input w-24 input input-bordered input-md" value="${product.selling.quantity}" />
+      </td>
+      <td>
+        <img class="max-h-24 hover:scale-[4] transition-all duration-500 cursor-pointer" src="${product.image_url.slice(6)}"/>
+      </td>
+      <th scope='row'>${product.name}</th>
+      <td>${product.collector_number || ''}</td>
+      <td>${USDollar.format(getExchangeRate(product.market_price[0].market_price[marketPrice]))}</td>
+      <td>${USDollar.format(retailPrice(getExchangeRate(product.market_price[0].market_price[marketPrice])))}</td>
+      <td>
+        <input id="${product._id}" class="toggle toggle-success buying-checkbox" type="checkbox" ${product.buying.enabled ? 'checked' : ''}>
+        <label for="${product._id}" class="sr-only">checkbox</label>
+      </td>
+      <td>
+        <input data-id="${product._id}" type="number" class="buying-qty-input w-24 input input-bordered input-md" value="${product.buying.quantity}" />
+      </td>
+      <td>${USDollar.format(getExchangeRate(settings.buylist_percentage * product.market_price[0].market_price[marketPrice]))}</td>
+      <td>${product.pos_id || 'N/A'}</td>
+    </tr>`
 }
-
 const showLargeChanges = (changes) => {
   document.getElementById('app').innerHTML = setListTemplate
   document.getElementById('search').dataset.scope = 'game'
   document.getElementById('table-head').innerHTML += `
-    <th scope='col' class='px-6 py-3'>
-          Name
-        </th>
-        <th scope='col' class='px-6 py-3'>
-          Old Price
-        </th>
-        <th scope='col' class='px-6 py-3'>
-          New Price
-        </th>
-        <th scope='col' class='px-6 py-3'>
-          % Change
-        </th>
-  `
-  for (var i = 0; i < changes.length; i++) {
-    document.getElementById('list').innerHTML += `<tr>
-  
-      <th scope='row' class="px-6 py-4 font-medium whitespace-nowrap text-white">${changes[i].Item}</th>
-      <td>${changes[i].Price}</td>
-      <td>${changes[i].new_price}</td>
-      <td>${((changes[i].new_price - changes[i].MSRP) / changes[i].MSRP) * 100}</td>
-
-    </tr>`
-  }
+    <th scope='col' class='px-6 py-3'>Name</th>
+    <th scope='col' class='px-6 py-3'>Old Price</th>
+    <th scope='col' class='px-6 py-3'>New Price</th>
+    <th scope='col' class='px-6 py-3'>% Change</th>`
+  changes.forEach((change) => {
+    document.getElementById('list').innerHTML += `
+      <tr>
+        <th scope='row' class="px-6 py-4 font-medium whitespace-nowrap text-white">${change.Item}</th>
+        <td>${change.Price}</td>
+        <td>${change.new_price}</td>
+        <td>${((change.new_price - change.MSRP) / change.MSRP) * 100}</td>
+      </tr>`
+  })
 }
-
-// const showSearchResults = (results) => {
-//   document.getElementById('list').innerHTML = ""
-//   if(results.length > 0) {
-//     results.forEach(result => {
-//       document.getElementById('list').innerHTML += "
-
-//       "
-//     })
-//   }
-// }
-// const search = async (input, scope, id) => {
-//   let service;
-//   let query;
-//   if (scope === 'game') {
-//     service = 'games'
-//     query = {
-//       name: { $regex: input, $options: 'i' }
-//     }
-//   } else if ((scope === 'set')) {
-//     service = 'sets'
-//     query = {
-//       name: { $regex: input, $options: 'i' }
-//     }
-//   } else if ((scope === 'products-for-game')) {
-//     service = 'products'
-//     query = {
-//       name: { $regex: input, $options: 'i' },
-//       game_id: id
-//     }
-//   } else if ((scope === 'products-for-set')) {
-//     service = products,
-//     query = {
-//       name: { $regex: input, $options: 'i' },
-//       set_id: id
-//     }
-//   }
-// console.log(service)
-//   await client
-//     .service(service)
-//     .find({
-//       query
-//     })
-//     .then((data) => {
-//       showSearchResults(data.data, scope)
-//     })
-// }
 const paginate = (scope, id, total, limit, skip) => {
-  let counter = 1 + skip
-  let currentSpan = document.querySelector('[data-id="paginate-current"]')
-  let totalSpan = document.querySelector('[data-id="paginate-total"]')
-  let pages = document.getElementById('pagination')
-  let numPages = Math.ceil(total / limit)
-  let currentPage
+  const currentSpan = document.querySelector('[data-id="paginate-current"]')
+  const totalSpan = document.querySelector('[data-id="paginate-total"]')
+  const pages = document.getElementById('pagination')
+  const numPages = Math.ceil(total / limit)
+  const currentPage = Math.floor(skip / limit) + 1
 
-  skip / limit > 0 ? (currentPage = skip / limit + 1) : (currentPage = 1)
-
-  console.log(`currentpage ${currentPage}, numpages: ${numPages}`)
-
-  if (counter === total) {
-    currentSpan.innerHTML += `${counter}`
-  } else if (total < limit || counter + limit + 1 > total) {
-    currentSpan.innerHTML += `${counter} to ${total}`
-  } else {
-    currentSpan.innerHTML += `${counter} to ${counter + limit - 1}`
-  }
-  totalSpan.innerHTML += `${total}`
-
+  // Clear previous pagination
+  currentSpan.innerHTML = ''
+  totalSpan.innerHTML = ''
+  pages.innerHTML = ''
+  // Update current and total spans
+  currentSpan.innerHTML = `${skip + 1} to ${Math.min(skip + limit, total)}`
+  totalSpan.innerHTML = `${total}`
+  // Add "First" and "Prev" buttons
   if (currentPage > 1) {
     pages.innerHTML += `
-        <li>
-        <button data-scope=${scope} data-id='${id}' data-skip='0' class="paginate-button btn join-item">First</button>
-
-        </li>
-        
-        <li>
-        <button data-scope=${scope} data-id='${id}' data-skip='${(currentPage - 2) * limit}' class="paginate-button btn join-item">Prev</button>
+      <li>
+        <button data-scope="${scope}" data-id="${id}" data-skip="0" class="paginate-button btn join-item">First</button>
+      </li>
+      <li>
+        <button data-scope="${scope}" data-id="${id}" data-skip="${(currentPage - 2) * limit}" class="paginate-button btn join-item">Prev</button>
       </li>`
   }
-
-  for (var i = 1; i <= numPages; i++) {
-    // var li = document.createElement('li');
-    // var button = document.createElement('button')
-    // button.dataset.id = id;
-    // button.dataset.skip = (i-1)* limit
-    // button.className = "paginate-button join-item btn"
-    if (currentPage > 3) {
-      if (i >= currentPage + 3) {
-      } else if (i <= currentPage - 3) {
-      } else if (i == currentPage) {
-        pages.innerHTML += `
-            <li><button data-skip='${(i - 1) * limit}' data-scope=${scope} data-id='${id}' class="btn-active paginate-button join-item btn">${i}</button></li>
-
-            `
-      } else {
-        pages.innerHTML += `
-            <li><button data-skip='${(i - 1) * limit}' data-scope=${scope} data-id='${id}' class="paginate-button join-item btn">${i}</button></li>
-
-            `
-      }
-    } else {
-      if (numPages < 5) {
-        pages.innerHTML += `
-            <li><button data-skip='${(i - 1) * limit}' data-scope=${scope} data-id='${id}' class="paginate-button join-item btn">${i}</button></li>
-
-            `
-      } else {
-        if (i < 6) {
-          if (i == currentPage) {
-            pages.innerHTML += `
-            <li><button data-skip='${(i - 1) * limit}' data-scope=${scope} data-id='${id}' class="btn-active paginate-button join-item btn">${i}</button></li>
-
-            `
-          } else {
-            pages.innerHTML += `
-            <li><button data-skip='${(i - 1) * limit}' data-scope=${scope} data-id='${id}' class="paginate-button join-item btn">${i}</button></li>
-
-            `
-          }
-        }
-      }
+  // Add page number buttons
+  for (let i = 1; i <= numPages; i++) {
+    if (Math.abs(i - currentPage) < 3 || i < 6 || i > numPages - 5) {
+      pages.innerHTML += `
+        <li>
+          <button data-skip="${(i - 1) * limit}" data-scope="${scope}" data-id="${id}" class="paginate-button join-item btn ${i === currentPage ? 'btn-active' : ''}">${i}</button>
+        </li>`
     }
   }
-
-  if (total > limit) {
+  // Add "Next" and "Last" buttons
+  if (currentPage < numPages) {
     pages.innerHTML += `
-
-    <li>
-        <button data-id='${id}' data-scope=${scope} data-skip='${currentPage * limit}' class="paginate-button btn join-item">Next</a>
-    </li>
-    <li>
-        <button data-id='${id}' data-scope=${scope} data-skip='${(numPages - 1) * limit}' class="paginate-button btn join-item">Last</a>
-    </li>
-    
-    `
+      <li>
+        <button data-id="${id}" data-scope="${scope}" data-skip="${currentPage * limit}" class="paginate-button btn join-item">Next</button>
+      </li>
+      <li>
+        <button data-id="${id}" data-scope="${scope}" data-skip="${(numPages - 1) * limit}" class="paginate-button btn join-item">Last</button>
+      </li>`
   }
 }
-
 /////////////
 /* Fetches */
 /////////////
@@ -819,7 +579,7 @@ const extractProductData = (foundProduct) => {
   newProduct.buying = { enabled: false, quantity: 0 }
   newProduct.selling = { enabled: false, quantity: 0 }
   newProduct.type = determineProductType(foundProduct, newProduct)
-  
+
   newProduct.last_updated = Date.now()
 
   return newProduct
@@ -872,12 +632,16 @@ const fetchProducts = async () => {
         }
 
         if (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) {
-          if (foundProduct.name.includes(newProduct.collector_number)) {
+          if (foundProduct.name.includes(newProduct.collector_number) || foundProduct.collector_number == undefined) {
             newProduct.name += ` (${price.subTypeName}, ${newProduct.rarity})`
-          } else {
+          } else if (newProduct.collector_number != undefined) {
             newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}, ${newProduct.rarity})`
           }
         }
+
+        // if(!newProduct.collector_number){
+        //   newProduct.collector_number = "0"
+        // }
 
         // const existingProduct = await client.service('products').find({
         //   query: {
@@ -887,28 +651,26 @@ const fetchProducts = async () => {
         //   }
         // })
 
-        const existingProduct = await client
-          .service('products')
-          .find({
-            query: {
-              name: newProduct.name,
-              'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id)
-            }
-          })
+        const existingProduct = await client.service('products').find({
+          query: {
+            name: newProduct.name,
+            'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id)
+          }
+        })
 
         if (existingProduct.total == 1) {
           console.log('exists')
-           if (existingProduct.data[0].last_updated < settings.tcgcsv_last_updated) {
-          console.log('updating price')
-          newPrice.product_id = existingProduct.data[0]._id
-          await client.service('prices').create(newPrice)
-          await client
-            .service('products')
-            .patch(existingProduct.data[0]._id, { last_updated: newProduct.last_updated })
-       }
-        } else if( existingProduct.total > 1){
+          if (existingProduct.data[0].last_updated < settings.tcgcsv_last_updated) {
+            console.log('updating price')
+            newPrice.product_id = existingProduct.data[0]._id
+            await client.service('prices').create(newPrice)
+            await client
+              .service('products')
+              .patch(existingProduct.data[0]._id, { last_updated: newProduct.last_updated })
+          }
+        } else if (existingProduct.total > 1) {
           console.log('found too many')
-        } else{
+        } else {
           console.log('no match')
           console.log(newProduct)
           const insertedProduct = await client.service('products').create(newProduct)
@@ -926,9 +688,11 @@ const fetchProducts = async () => {
   }
 }
 
-const determineProductType = (foundProduct, newProduct) => {
+const determineProductType = (foundProduct) => {
   if (foundProduct.extendedData.length <= 2) {
     if (foundProduct.extendedData.name && foundProduct.extendedData.name.includes('Token')) {
+      return 'Single Cards'
+    } else if (foundProduct.name.includes('Energy')) {
       return 'Single Cards'
     } else if (foundProduct.name.includes('Code Card')) {
       return 'Single Cards'
@@ -975,7 +739,8 @@ const getProductsForGame = async (gameId, limit, skip) => {
           collector_number: 1
         },
         $limit: limit,
-        $skip: skip
+        $skip: skip,
+     
       }
     })
     .then((data) => {
