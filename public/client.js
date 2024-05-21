@@ -3,13 +3,19 @@ import { header } from './templates/header.mjs'
 import { dashboardTemplate } from './templates/dashboard.mjs'
 import { setListTemplate } from './templates/set-list.mjs'
 
+
+
+const uri = '127.0.0.1:27017';
+const dbName = 'mps';
+
+
 const socket = io()
 const client = feathers()
 client.configure(feathers.socketio(socket))
 client.configure(feathers.authentication())
 
 var settings = {
-  limit: 10,
+  limit: 5000,
   skip: 0,
   buylist_percentage: 0.6,
   timeout: 500,
@@ -90,11 +96,13 @@ addEventListener('.show-set-list', 'click', async (e) => {
 })
 
 addEventListener('.show-product-list', 'click', async (e) => {
-  showProductList(e.srcElement.dataset.scope, e.srcElement.dataset.id)
+  showProductList(e.srcElement.dataset.scope, e.srcElement.dataset.id, settings.limit)
 })
 
 addEventListener('.update-data', 'click', async (e) => {
   document.getElementById('updating').toggleAttribute('hidden')
+  var startTime = Date.now()
+  console.log(Starting)
   await fetchGames()
   await fetchSets()
   await fetchProducts()
@@ -465,6 +473,35 @@ const showProduct = (product) => {
   // <td>$${(product.marketPrice.normal) ? product.marketPrice.normal : (product.marketPrice.foil) ? product.marketPrice.foil : (product.marketPrice.reverseFoil) ? product.marketPrice.reverseFoil : ""} </td>
 }
 
+const showLargeChanges = (changes) => {
+  document.getElementById('app').innerHTML = setListTemplate
+  document.getElementById('search').dataset.scope = 'game'
+  document.getElementById('table-head').innerHTML += `
+    <th scope='col' class='px-6 py-3'>
+          Name
+        </th>
+        <th scope='col' class='px-6 py-3'>
+          Old Price
+        </th>
+        <th scope='col' class='px-6 py-3'>
+          New Price
+        </th>
+        <th scope='col' class='px-6 py-3'>
+          % Change
+        </th>
+  `
+  for (var i = 0; i < changes.length; i++) {
+    document.getElementById('list').innerHTML += `<tr>
+  
+      <th scope='row' class="px-6 py-4 font-medium whitespace-nowrap text-white">${changes[i].Item}</th>
+      <td>${changes[i].Price}</td>
+      <td>${changes[i].new_price}</td>
+      <td>${((changes[i].new_price - changes[i].MSRP) / changes[i].MSRP) * 100}</td>
+
+    </tr>`
+  }
+}
+
 // const showSearchResults = (results) => {
 //   document.getElementById('list').innerHTML = ""
 //   if(results.length > 0) {
@@ -647,7 +684,8 @@ const fetchSets = async () => {
               .find({
                 query: {
                   game_id: result._id,
-                  name: d[i].name
+                  name: d[i].name,
+                  $limit: 1000
                 }
               })
               .then(async (data) => {
@@ -668,276 +706,1035 @@ const fetchSets = async () => {
   })
 }
 
-const fetchProducts = async () => {
-  await getEnabledSets().then(async (data) => {
-    if (data.total != 0) {
-      var sets = data.data
+// const fetchProducts = async () => {
+//   await getEnabledSets().then(async (data) => {
+//     if (data.total != 0) {
+//       var sets = data.data
 
-      for (var i = 0; i < sets.length; i++) {
-        await getExternalIdForGame(sets[i].game_id).then(async (gameId) => {
-          let set = sets[i]
-          await axios
-            .get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`)
-            //create products
-            .then(async (data) => {
-              console.log(sets)
+//       for (var i = 0; i < sets.length; i++) {
+//         await getExternalIdForGame(sets[i].game_id).then(async (gameId) => {
+//           let set = sets[i]
+//           await axios
+//             .get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`)
+//             //create products
+//             .then(async (data) => {
+//               console.log(sets)
 
-              var prices
-              await axios
-                .get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
-                .then((data) => {
-                  if (data.data.totalItems != 0) {
-                    prices = data.data.results
-                  }
-                })
+//               var prices
+//               await axios
+//                 .get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
+//                 .then((data) => {
+//                   if (data.data.totalItems != 0) {
+//                     prices = data.data.results
+//                   }
+//                 })
 
-              if (prices.length != 0 && data.data.totalItems != 0) {
-                let results = data.data.results
+//               if (prices.length != 0 && data.data.totalItems != 0) {
+//                 let results = data.data.results
 
-                for (var i = 0; i < prices.length; i++) {
-                  for (var j = 0; j < results.length; j++) {
-                    if (prices[i].productId === results[j].productId) {
-                      let product = {}
-                      let price = {}
-                      if (results[j].extendedData) {
-                        for (var k = 0; k < results[j].extendedData.length; k++) {
-                          switch (results[j].extendedData[k].name) {
-                            case 'UPC':
-                              product.upc = results[j].extendedData[k].value
-                              break
-                            //Universal
-                            case 'CardText':
-                              product.text = results[j].extendedData[k].value
-                              break
-                            case 'Number':
-                              product.collector_number = results[j].extendedData[k].value
-                              break
-                            case 'Rarity':
-                              product.rarity = results[j].extendedData[k].value
-                              break
-                            //MTG
-                            case 'SubType':
-                              product.sub_type = results[j].extendedData[k].value
-                              break
-                            case 'P':
-                              product.power = results[j].extendedData[k].value
-                              break
-                            case 'T':
-                              product.toughness = results[j].extendedData[k].value
-                              break
-                            case 'OracleText':
-                              product.text = results[j].extendedData[k].value
-                              break
-                            case 'FlavorText':
-                              product.flavor_text = results[j].extendedData[k].value
-                              break
-                            //Pokemon
-                            case 'Card Type':
-                              product.card_type = results[j].extendedData[k].value
-                              break
-                            case 'HP':
-                              product.hp = results[j].extendedData[k].value
-                              break
-                            case 'Stage':
-                              product.stage = results[j].extendedData[k].value
-                              break
-                            case 'Attack 1':
-                              product.attack_1 = results[j].extendedData[k].value
-                              break
-                            case 'Attack 2':
-                              product.attack_2 = results[j].extendedData[k].value
-                              break
-                            case 'Attack 3':
-                              product.attack_3 = results[j].extendedData[k].value
-                              break
-                            case 'Attack 4':
-                              product.attack_4 = results[j].extendedData[k].value
-                              break
-                            case 'Weakness':
-                              product.weakness = results[j].extendedData[k].value
-                              break
-                            case 'Resistance':
-                              product.resistance = results[j].extendedData[k].value
-                              break
-                            case 'Retreat Cost':
-                              product.retreat_cost = results[j].extendedData[k].value
-                              break
-                            //One Piece / DBS FW
-                            case 'Description':
-                              product.text = results[j].extendedData[k].value
-                              break
-                            case 'Color':
-                              product.colour = results[j].extendedData[k].value
-                              break
-                            case 'Cost':
-                              product.cost = results[j].extendedData[k].value
-                              break
-                            case 'CardType':
-                              product.card_type = results[j].extendedData[k].value
-                              break
-                            case 'Life': //one piece only
-                              product.life = results[j].extendedData[k].value
-                              break
-                            case 'Counterplus': //one piece only
-                              product.counter = results[j].extendedData[k].value
-                              break
-                            case 'Power':
-                              product.power = results[j].extendedData[k].value
-                              break
-                            case 'SubTypes':
-                              product.sub_type = results[j].extendedData[k].value
-                              break
-                            case 'Attribute':
-                              product.attribute = results[j].extendedData[k].value
-                              break
-                            case 'Combo Power': //DBS Only
-                              product.combo_power = results[j].extendedData[k].value
-                              break
-                            case 'Character Traits': //DBS only
-                              product.sub_type = results[j].extendedData[k].value
-                              break
-                            // Lorcana
-                            case 'Property':
-                              product.property = results[j].extendedData[k].value
-                              break
-                            case 'Cost Ink':
-                              product.cost = results[j].extendedData[k].value
-                              break
-                            case 'Character Version':
-                              product.character_version = results[j].extendedData[k].value
-                              break
-                            case 'InkType':
-                              product.ink_type = results[j].extendedData[k].value
-                              break
-                            case 'Strength':
-                              product.power = results[j].extendedData[k].value
-                              break
-                            case 'Willpower':
-                              product.toughness = results[j].extendedData[k].value
-                              break
-                            case 'Lore Value':
-                              product.lore_value = results[j].extendedData[k].value
-                              break
-                            case 'Flavor Text':
-                              product.flavor_text = results[j].extendedData[k].value
-                              break
-                          }
-                        }
-                      } else {
-                        console.log(results[j])
-                      }
-                      product.set_id = set._id
-                      product.game_id = set.game_id
-                      product.external_id = {}
-                      product.external_id.tcgcsv_id = results[j].productId
-                      product.name = `${results[j].name}`
-                      product.image_url = `${results[j].imageUrl.slice(0, -8)}400w.jpg`
-                      product.buying = {
-                        enabled: false,
-                        quantity: 0
-                      }
-                      product.selling = {
-                        enabled: false,
-                        quantity: 0
-                      }
+//                 for (var i = 0; i < prices.length; i++) {
+//                   for (var j = 0; j < results.length; j++) {
+//                     if (prices[i].productId === results[j].productId) {
+//                       let product = {}
+//                       let price = {}
+//                       if (results[j].extendedData) {
+//                         for (var k = 0; k < results[j].extendedData.length; k++) {
+//                           switch (results[j].extendedData[k].name) {
+//                             case 'UPC':
+//                               product.upc = results[j].extendedData[k].value
+//                               break
+//                             //Universal
+//                             case 'CardText':
+//                               product.text = results[j].extendedData[k].value
+//                               break
+//                             case 'Number':
+//                               product.collector_number = results[j].extendedData[k].value
+//                               break
+//                             case 'Rarity':
+//                               product.rarity = results[j].extendedData[k].value
+//                               break
+//                             //MTG
+//                             case 'SubType':
+//                               product.sub_type = results[j].extendedData[k].value
+//                               break
+//                             case 'P':
+//                               product.power = results[j].extendedData[k].value
+//                               break
+//                             case 'T':
+//                               product.toughness = results[j].extendedData[k].value
+//                               break
+//                             case 'OracleText':
+//                               product.text = results[j].extendedData[k].value
+//                               break
+//                             case 'FlavorText':
+//                               product.flavor_text = results[j].extendedData[k].value
+//                               break
+//                             //Pokemon
+//                             case 'Card Type':
+//                               product.card_type = results[j].extendedData[k].value
+//                               break
+//                             case 'HP':
+//                               product.hp = results[j].extendedData[k].value
+//                               break
+//                             case 'Stage':
+//                               product.stage = results[j].extendedData[k].value
+//                               break
+//                             case 'Attack 1':
+//                               product.attack_1 = results[j].extendedData[k].value
+//                               break
+//                             case 'Attack 2':
+//                               product.attack_2 = results[j].extendedData[k].value
+//                               break
+//                             case 'Attack 3':
+//                               product.attack_3 = results[j].extendedData[k].value
+//                               break
+//                             case 'Attack 4':
+//                               product.attack_4 = results[j].extendedData[k].value
+//                               break
+//                             case 'Weakness':
+//                               product.weakness = results[j].extendedData[k].value
+//                               break
+//                             case 'Resistance':
+//                               product.resistance = results[j].extendedData[k].value
+//                               break
+//                             case 'Retreat Cost':
+//                               product.retreat_cost = results[j].extendedData[k].value
+//                               break
+//                             //One Piece / DBS FW
+//                             case 'Description':
+//                               product.text = results[j].extendedData[k].value
+//                               break
+//                             case 'Color':
+//                               product.colour = results[j].extendedData[k].value
+//                               break
+//                             case 'Cost':
+//                               product.cost = results[j].extendedData[k].value
+//                               break
+//                             case 'CardType':
+//                               product.card_type = results[j].extendedData[k].value
+//                               break
+//                             case 'Life': //one piece only
+//                               product.life = results[j].extendedData[k].value
+//                               break
+//                             case 'Counterplus': //one piece only
+//                               product.counter = results[j].extendedData[k].value
+//                               break
+//                             case 'Power':
+//                               product.power = results[j].extendedData[k].value
+//                               break
+//                             case 'SubTypes':
+//                               product.sub_type = results[j].extendedData[k].value
+//                               break
+//                             case 'Attribute':
+//                               product.attribute = results[j].extendedData[k].value
+//                               break
+//                             case 'Combo Power': //DBS Only
+//                               product.combo_power = results[j].extendedData[k].value
+//                               break
+//                             case 'Character Traits': //DBS only
+//                               product.sub_type = results[j].extendedData[k].value
+//                               break
+//                             // Lorcana
+//                             case 'Property':
+//                               product.property = results[j].extendedData[k].value
+//                               break
+//                             case 'Cost Ink':
+//                               product.cost = results[j].extendedData[k].value
+//                               break
+//                             case 'Character Version':
+//                               product.character_version = results[j].extendedData[k].value
+//                               break
+//                             case 'InkType':
+//                               product.ink_type = results[j].extendedData[k].value
+//                               break
+//                             case 'Strength':
+//                               product.power = results[j].extendedData[k].value
+//                               break
+//                             case 'Willpower':
+//                               product.toughness = results[j].extendedData[k].value
+//                               break
+//                             case 'Lore Value':
+//                               product.lore_value = results[j].extendedData[k].value
+//                               break
+//                             case 'Flavor Text':
+//                               product.flavor_text = results[j].extendedData[k].value
+//                               break
+//                           }
+//                         }
+//                       } else {
+//                         console.log(results[j])
+//                       }
+//                       product.set_id = set._id
+//                       product.game_id = set.game_id
+//                       product.external_id = {}
+//                       product.external_id.tcgcsv_id = results[j].productId
+//                       product.name = `${results[j].name}`
+//                       product.image_url = `${results[j].imageUrl.slice(0, -8)}400w.jpg`
+//                       product.buying = {
+//                         enabled: false,
+//                         quantity: 0
+//                       }
+//                       product.selling = {
+//                         enabled: false,
+//                         quantity: 0
+//                       }
 
-                      if (results[j].extendedData.length <= 2) {
-                        if (results[j].extendedData.name && results[j].extendedData.name.includes('Token')) {
-                          product.type = 'Single Cards'
-                        } else if (results[j].name.includes('Code Card')) {
-                          product.type = 'Single Cards'
-                        } else if (results[j].name.includes('Booster')) {
-                          product.type = 'Boosters'
-                        } else if (results[j].name.includes('Deck')) {
-                          product.type = 'Decks'
-                        } else if (results[j].name.includes('Elite Trainer Box')) {
-                          product.type = 'Elite Trainer Boxes'
-                        } else if (results[j].name.includes('Double Pack')) {
-                          product.type = 'Boosters'
-                        } else if (results[j].name.includes('Build & Battle Box')) {
-                          product.type = 'Build & Battle Boxes'
-                        } else if (results[j].name.includes('Blister')) {
-                          product.type = 'Boosters'
-                        } else {
-                          product.type = 'sealed'
-                        }
-                      } else {
-                        product.type = 'Single Cards'
-                      }
+//                       if (results[j].extendedData.length <= 2) {
+//                         if (results[j].extendedData.name && results[j].extendedData.name.includes('Token')) {
+//                           product.type = 'Single Cards'
+//                         } else if (results[j].name.includes('Code Card')) {
+//                           product.type = 'Single Cards'
+//                         } else if (results[j].name.includes('Booster')) {
+//                           product.type = 'Boosters'
+//                         } else if (results[j].name.includes('Deck')) {
+//                           product.type = 'Decks'
+//                         } else if (results[j].name.includes('Elite Trainer Box')) {
+//                           product.type = 'Elite Trainer Boxes'
+//                         } else if (results[j].name.includes('Double Pack')) {
+//                           product.type = 'Boosters'
+//                         } else if (results[j].name.includes('Build & Battle Box')) {
+//                           product.type = 'Build & Battle Boxes'
+//                         } else if (results[j].name.includes('Blister')) {
+//                           product.type = 'Boosters'
+//                         } else {
+//                           product.type = 'sealed'
+//                         }
+//                       } else {
+//                         product.type = 'Single Cards'
+//                       }
 
-                      if (product.type === 'Single Cards' && !product.name.includes('Code Card')) {
-                        if (results[j].name.includes(product.collector_number)) {
-                          product.name += ` (${prices[i].subTypeName}, ${product.rarity})`
-                        } else {
-                          product.name += ` - ${product.collector_number} (${prices[i].subTypeName}, ${product.rarity})`
-                        }
-                      }
+//                       if (product.type === 'Single Cards' && !product.name.includes('Code Card')) {
+//                         if (results[j].name.includes(product.collector_number)) {
+//                           product.name += ` (${prices[i].subTypeName}, ${product.rarity})`
+//                         } else {
+//                           product.name += ` - ${product.collector_number} (${prices[i].subTypeName}, ${product.rarity})`
+//                         }
+//                       }
 
-                      if (prices[i].productId === results[j].productId) {
-                        if (prices[i].marketPrice) {
-                          price.market_price = {
-                            [prices[i].subTypeName]: Number(prices[i].marketPrice)
-                          }
-                        } else {
-                          price.market_price = {
-                            [prices[i].subTypeName]: Number(prices[i].midPrice)
-                          }
-                        }
+//                       if (prices[i].productId === results[j].productId) {
+//                         if (prices[i].marketPrice) {
+//                           price.market_price = {
+//                             [prices[i].subTypeName]: Number(prices[i].marketPrice)
+//                           }
+//                         } else {
+//                           price.market_price = {
+//                             [prices[i].subTypeName]: Number(prices[i].midPrice)
+//                           }
+//                         }
 
-                        product.last_updated = Date.now()
+//                         product.last_updated = Date.now()
 
-                        await client
-                          .service('products')
-                          .find({
-                            query: {
-                              name: `${product.name}`,
-                              external_id: {
-                                tcgcsv_id: results[j].productId
-                              }
-                            }
-                          })
-                          .then(async (data) => {
-                            if (data.total === 0) {
-                              console.log('no match')
-                              await client
-                                .service('products')
-                                .create(product)
-                                .then(async (data) => {
-                                  if (data._id) {
-                                    price.timestamp = Date.now()
+//                         await client
+//                           .service('products')
+//                           .find({
+//                             query: {
+//                               $limit: 100000
+//                             }
+//                           }).then(data => {
+//                             console.log(data)
+//                           })
+//                         // await client
+//                         //   .service('products')
+//                         //   .find({
+//                         //     query: {
+//                         //       name: `${product.name}`,
+//                         //       external_id: {
+//                         //         tcgcsv_id: results[j].productId
+//                         //       }
+//                         //     }
+//                         //   })
+//                         //   .then(async (data) => {
+//                         //     if (data.total === 0) {
+//                         //       console.log('no match')
+//                         //       await client
+//                         //         .service('products')
+//                         //         .create(product)
+//                         //         .then(async (data) => {
+//                         //           if (data._id) {
+//                         //             price.timestamp = Date.now()
 
-                                    price.product_id = data._id
-                                    await client.service('prices').create(price)
-                                  }
-                                })
-                            } else if (
-                              data.total != 0 &&
-                              data.data[0].last_updated < settings.tcgcsv_last_updated
-                            ) {
-                              price.timestamp = Date.now()
-                              price.product_id = data.data[0]._id
-                              await client.service('prices').create(price)
-                            }
-                          })
-                      }
-                    }
-                  }
-                }
-              }
-            })
-        })
+//                         //             price.product_id = data._id
+//                         //             await client.service('prices').create(price)
+//                         //           }
+//                         //         })
+//                         //     } else if (
+//                         //       data.total != 0 &&
+//                         //       (data.data[0].last_updated) < (settings.tcgcsv_last_updated)
+//                         //     ) {
+//                         //       console.log('new price')
+//                         //       price.timestamp = Date.now()
+//                         //       price.product_id = data.data[0]._id
+//                         //       await client.service('prices').create(price)
+//                         //       await client.service('products').patch(data.data[0]._id, {
+//                         //         last_updated: Date.now()
+//                         //       })
+//                         //     }
+//                         //   });
+//                       }
+//                     }
+//                   }
+//                 }
+//               }
+//             })
+//         })
+//       }
+//     }
+//   })
+// }
+
+// const fetchProducts = async () => {
+//   let externalIds = []
+//   let prices = []
+//   let products = []
+//   let productArray = []
+//   let priceArray = []
+//   let fromDB = []
+//   await getEnabledSets().then(async (data) => {
+//     if (data.total != 0) {
+//       var enabledSets = data.data
+
+//       for (var k = 0; k < enabledSets.length; k++) {
+//         var set = enabledSets[k]
+//         await getExternalIdForGame(set.game_id).then(async (gameId) => {
+//           await axios
+//             .all([
+//               axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
+//               //create products
+
+//               axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
+//             ])
+//             .then(
+//               axios.spread((data1, data2) => {
+//                 let productsToPush = data1.data.results.map((v) => ({
+//                   ...v,
+//                   game_id: set.game_id,
+//                   set_id: set._id
+//                 }))
+//                 products.push(...productsToPush)
+//                 prices.push(...data2.data.results)
+//               })
+//             )
+//         })
+//       }
+
+//       // await client
+//       //   .service('products')
+//       //   .find({query: {
+//       //     $limit: 500000
+//       //   }})
+//       //   .then((data) => {
+//       //     console.log(data.data.length)
+//       //     fromDB = data.data
+//       //     console.log(fromDB.length)
+//       //   })
+
+//       let startTime = Date.now()
+//       console.log(`Starting DB Stuff: ${startTime}`)
+
+//       if (prices.length != 0 && products.length != 0) {
+//         var productMap = new Map(products.map((product) => [product.productId, product]))
+//         var newPrices = []
+//         var results = prices.map((price) => {
+//           const foundProduct = productMap.get(price.productId)
+//           var newProduct = {}
+//           var newPrice = {}
+//           if (foundProduct.extendedData) {
+//             for (var i = 0; i < foundProduct.extendedData.length; i++) {
+//               switch (foundProduct.extendedData[i].name) {
+//                 case 'UPC':
+//                   newProduct.upc = foundProduct.extendedData[i].value
+//                   break
+//                 //Universal
+//                 case 'CardText':
+//                   newProduct.text = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Number':
+//                   newProduct.collector_number = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Rarity':
+//                   newProduct.rarity = foundProduct.extendedData[i].value
+//                   break
+//                 //MTG
+//                 case 'SubType':
+//                   newProduct.sub_type = foundProduct.extendedData[i].value
+//                   break
+//                 case 'P':
+//                   newProduct.power = foundProduct.extendedData[i].value
+//                   break
+//                 case 'T':
+//                   newProduct.toughness = foundProduct.extendedData[i].value
+//                   break
+//                 case 'OracleText':
+//                   newProduct.text = foundProduct.extendedData[i].value
+//                   break
+//                 case 'FlavorText':
+//                   newProduct.flavor_text = foundProduct.extendedData[i].value
+//                   break
+//                 //Pokemon
+//                 case 'Card Type':
+//                   newProduct.card_type = foundProduct.extendedData[i].value
+//                   break
+//                 case 'HP':
+//                   newProduct.hp = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Stage':
+//                   newProduct.stage = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Attack 1':
+//                   newProduct.attack_1 = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Attack 2':
+//                   newProduct.attack_2 = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Attack 3':
+//                   newProduct.attack_3 = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Attack 4':
+//                   newProduct.attack_4 = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Weakness':
+//                   newProduct.weakness = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Resistance':
+//                   newProduct.resistance = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Retreat Cost':
+//                   newProduct.retreat_cost = foundProduct.extendedData[i].value
+//                   break
+//                 //One Piece / DBS FW
+//                 case 'Description':
+//                   newProduct.text = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Color':
+//                   newProduct.colour = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Cost':
+//                   newProduct.cost = foundProduct.extendedData[i].value
+//                   break
+//                 case 'CardType':
+//                   newProduct.card_type = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Life': //one piece only
+//                   newProduct.life = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Counterplus': //one piece only
+//                   newProduct.counter = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Power':
+//                   newProduct.power = foundProduct.extendedData[i].value
+//                   break
+//                 case 'SubTypes':
+//                   newProduct.sub_type = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Attribute':
+//                   newProduct.attribute = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Combo Power': //DBS Only
+//                   newProduct.combo_power = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Character Traits': //DBS only
+//                   newProduct.sub_type = foundProduct.extendedData[i].value
+//                   break
+//                 // Lorcana
+//                 case 'Property':
+//                   newProduct.property = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Cost Ink':
+//                   newProduct.cost = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Character Version':
+//                   newProduct.character_version = foundProduct.extendedData[i].value
+//                   break
+//                 case 'InkType':
+//                   newProduct.ink_type = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Strength':
+//                   newProduct.power = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Willpower':
+//                   newProduct.toughness = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Lore Value':
+//                   newProduct.lore_value = foundProduct.extendedData[i].value
+//                   break
+//                 case 'Flavor Text':
+//                   newProduct.flavor_text = foundProduct.extendedData[i].value
+//                   break
+//               }
+//             }
+//           } else {
+//             console.log(foundProduct)
+//           }
+
+//           newProduct.set_id = foundProduct.set_id
+//           newProduct.game_id = foundProduct.game_id
+//           newProduct.external_id = {}
+//           newProduct.external_id.tcgcsv_id = Number(foundProduct.productId)
+//           newProduct.external_id.tcgcsv_category_id = Number(foundProduct.categoryId)
+//           newProduct.external_id.tcgcsv_group_id = Number(foundProduct.groupId)
+
+//           newProduct.name = `${foundProduct.name}`
+//           newProduct.image_url = `${foundProduct.imageUrl.slice(0, -8)}400w.jpg`
+//           newProduct.buying = {
+//             enabled: false,
+//             quantity: 0
+//           }
+//           newProduct.selling = {
+//             enabled: false,
+//             quantity: 0
+//           }
+
+//           if (foundProduct.extendedData.length <= 2) {
+//             if (foundProduct.extendedData.name && foundProduct.extendedData.name.includes('Token')) {
+//               newProduct.type = 'Single Cards'
+//             } else if (foundProduct.name.includes('Code Card')) {
+//               newProduct.type = 'Single Cards'
+//             } else if (foundProduct.name.includes('Booster')) {
+//               newProduct.type = 'Boosters'
+//             } else if (foundProduct.name.includes('Deck')) {
+//               newProduct.type = 'Decks'
+//             } else if (foundProduct.name.includes('Elite Trainer Box')) {
+//               newProduct.type = 'Elite Trainer Boxes'
+//             } else if (foundProduct.name.includes('Double Pack')) {
+//               newProduct.type = 'Boosters'
+//             } else if (foundProduct.name.includes('Build & Battle Box')) {
+//               newProduct.type = 'Build & Battle Boxes'
+//             } else if (foundProduct.name.includes('Blister')) {
+//               newProduct.type = 'Boosters'
+//             } else {
+//               newProduct.type = 'sealed'
+//             }
+//           } else {
+//             newProduct.type = 'Single Cards'
+//           }
+
+//           if (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) {
+//             if (foundProduct.name.includes(newProduct.collector_number)) {
+//               newProduct.name += ` (${price.subTypeName}, ${newProduct.rarity})`
+//             } else {
+//               newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}, ${newProduct.rarity})`
+//             }
+//           }
+
+//                 if (price.marketPrice) {
+//                   newPrice.market_price = {
+//                     [price.subTypeName]: Number(price.marketPrice)
+//                   }
+//                 } else {
+//                   newPrice.market_price = {
+//                     [price.subTypeName]: Number(price.midPrice)
+//                   }
+//                 }
+
+//                 newProduct.last_updated = Date.now()
+//                 newPrices.push(newPrice)
+//                 return { ...newProduct }
+//               })
+//             }
+
+//         console.log(results)
+//         console.log(newPrices)
+
+//         // for (var i = 0; i < prices.length; i++) {
+//         //   for (var j = 0; j < products.length; j++) {
+//         //     if (prices[i].productId === products[j].productId) {
+//         //       let product = {}
+//         //       let price = {}
+//         //       if (products[j].extendedData) {
+//         //         for (var k = 0; k < products[j].extendedData.length; k++) {
+//         //           switch (products[j].extendedData[k].name) {
+//         //             case 'UPC':
+//         //               product.upc = products[j].extendedData[k].value
+//         //               break
+//         //             //Universal
+//         //             case 'CardText':
+//         //               product.text = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Number':
+//         //               product.collector_number = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Rarity':
+//         //               product.rarity = products[j].extendedData[k].value
+//         //               break
+//         //             //MTG
+//         //             case 'SubType':
+//         //               product.sub_type = products[j].extendedData[k].value
+//         //               break
+//         //             case 'P':
+//         //               product.power = products[j].extendedData[k].value
+//         //               break
+//         //             case 'T':
+//         //               product.toughness = products[j].extendedData[k].value
+//         //               break
+//         //             case 'OracleText':
+//         //               product.text = products[j].extendedData[k].value
+//         //               break
+//         //             case 'FlavorText':
+//         //               product.flavor_text = products[j].extendedData[k].value
+//         //               break
+//         //             //Pokemon
+//         //             case 'Card Type':
+//         //               product.card_type = products[j].extendedData[k].value
+//         //               break
+//         //             case 'HP':
+//         //               product.hp = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Stage':
+//         //               product.stage = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Attack 1':
+//         //               product.attack_1 = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Attack 2':
+//         //               product.attack_2 = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Attack 3':
+//         //               product.attack_3 = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Attack 4':
+//         //               product.attack_4 = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Weakness':
+//         //               product.weakness = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Resistance':
+//         //               product.resistance = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Retreat Cost':
+//         //               product.retreat_cost = products[j].extendedData[k].value
+//         //               break
+//         //             //One Piece / DBS FW
+//         //             case 'Description':
+//         //               product.text = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Color':
+//         //               product.colour = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Cost':
+//         //               product.cost = products[j].extendedData[k].value
+//         //               break
+//         //             case 'CardType':
+//         //               product.card_type = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Life': //one piece only
+//         //               product.life = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Counterplus': //one piece only
+//         //               product.counter = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Power':
+//         //               product.power = products[j].extendedData[k].value
+//         //               break
+//         //             case 'SubTypes':
+//         //               product.sub_type = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Attribute':
+//         //               product.attribute = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Combo Power': //DBS Only
+//         //               product.combo_power = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Character Traits': //DBS only
+//         //               product.sub_type = products[j].extendedData[k].value
+//         //               break
+//         //             // Lorcana
+//         //             case 'Property':
+//         //               product.property = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Cost Ink':
+//         //               product.cost = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Character Version':
+//         //               product.character_version = products[j].extendedData[k].value
+//         //               break
+//         //             case 'InkType':
+//         //               product.ink_type = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Strength':
+//         //               product.power = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Willpower':
+//         //               product.toughness = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Lore Value':
+//         //               product.lore_value = products[j].extendedData[k].value
+//         //               break
+//         //             case 'Flavor Text':
+//         //               product.flavor_text = products[j].extendedData[k].value
+//         //               break
+//         //           }
+//         //         }
+//         //       } else {
+//         //         console.log(products[j])
+//         //       }
+//         //       product.set_id = products[j].set_id
+//         //       product.game_id = products[j].game_id
+//         //       product.external_id = {}
+//         //       product.external_id.tcgcsv_id = Number(products[j].productId)
+//         //       product.external_id.tcgcsv_category_id = Number(products[j].categoryId)
+//         //       product.external_id.tcgcsv_group_id = Number(products[j].groupId)
+
+//         //       product.name = `${products[j].name}`
+//         //       product.image_url = `${products[j].imageUrl.slice(0, -8)}400w.jpg`
+//         //       product.buying = {
+//         //         enabled: false,
+//         //         quantity: 0
+//         //       }
+//         //       product.selling = {
+//         //         enabled: false,
+//         //         quantity: 0
+//         //       }
+
+//         //       if (products[j].extendedData.length <= 2) {
+//         //         if (products[j].extendedData.name && products[j].extendedData.name.includes('Token')) {
+//         //           product.type = 'Single Cards'
+//         //         } else if (products[j].name.includes('Code Card')) {
+//         //           product.type = 'Single Cards'
+//         //         } else if (products[j].name.includes('Booster')) {
+//         //           product.type = 'Boosters'
+//         //         } else if (products[j].name.includes('Deck')) {
+//         //           product.type = 'Decks'
+//         //         } else if (products[j].name.includes('Elite Trainer Box')) {
+//         //           product.type = 'Elite Trainer Boxes'
+//         //         } else if (products[j].name.includes('Double Pack')) {
+//         //           product.type = 'Boosters'
+//         //         } else if (products[j].name.includes('Build & Battle Box')) {
+//         //           product.type = 'Build & Battle Boxes'
+//         //         } else if (products[j].name.includes('Blister')) {
+//         //           product.type = 'Boosters'
+//         //         } else {
+//         //           product.type = 'sealed'
+//         //         }
+//         //       } else {
+//         //         product.type = 'Single Cards'
+//         //       }
+
+//         //       if (product.type === 'Single Cards' && !product.name.includes('Code Card')) {
+//         //         if (products[j].name.includes(product.collector_number)) {
+//         //           product.name += ` (${prices[i].subTypeName}, ${product.rarity})`
+//         //         } else {
+//         //           product.name += ` - ${product.collector_number} (${prices[i].subTypeName}, ${product.rarity})`
+//         //         }
+//         //       }
+
+//         //       if (prices[i].productId === products[j].productId) {
+//         //         if (prices[i].marketPrice) {
+//         //           price.market_price = {
+//         //             [prices[i].subTypeName]: Number(prices[i].marketPrice)
+//         //           }
+//         //         } else {
+//         //           price.market_price = {
+//         //             [prices[i].subTypeName]: Number(prices[i].midPrice)
+//         //           }
+//         //         }
+
+//         //         product.last_updated = Date.now()
+//         //       }
+//         //       productArray.push(product)
+//         //       priceArray.push(price)
+
+//         //       await client
+//         //         .service('products')
+//         //         .find({
+//         //           query: {
+//         //             external_id: {
+//         //               tcgcsv_id: Number(products[j].productId)
+//         //             }
+//         //           }
+//         //         })
+//         //         .then(async (data) => {
+//         //           if (data.total === 0) {
+//         //             console.log('no match')
+//         //             console.log(products[j])
+//         //             await client
+//         //               .service('products')
+//         //               .create(product)
+//         //               .then(async (data) => {
+//         //                 if (data._id) {
+//         //                   price.timestamp = Date.now()
+//         //                   price.product_id = data._id
+//         //                   await client
+//         //                     .service('prices')
+//         //                     .create(price)
+//         //                     .then((x) => {})
+//         //                 }
+//         //               })
+//         //           } else if (data.total != 0 && data.data[0].last_updated < settings.tcgcsv_last_updated) {
+//         //             console.log('new price')
+//         //             price.timestamp = Date.now()
+//         //             price.product_id = data.data[0]._id
+//         //             await client.service('prices').create(price)
+//         //             await client.service('products').patch(data.data[0]._id, {
+//         //               last_updated: Date.now()
+//         //             })
+//         //           }
+//         //         })
+//         //     }
+//         //   }
+//         // }
+//       }
+
+//       // for (var i = 0; i < fromDB.length; i++) {
+//       //   console.log(i)
+//       //   let match = false
+//       //   for (var j = 0; j < productArray.length; j++) {
+
+//       //     if (fromDB[i].external_id.tcgcsv_id == productArray[j].external_id.tcgcsv_id) {
+//       //       match = true
+//       //     }
+
+//       //   }
+//       //   if(match == false) {
+//       //     console.log("No Match for " + fromDB[i])
+//       //   }
+//       // }
+
+//     })
+// }
+
+const extractProductData = (foundProduct) => {
+  const newProduct = {}
+  if (foundProduct.extendedData) {
+    foundProduct.extendedData.forEach(({ name, value }) => {
+      switch (name) {
+        case 'UPC':
+          newProduct.upc = value
+          break
+        case 'CardText':
+        case 'OracleText':
+        case 'Description':
+          newProduct.text = value
+          break
+        case 'Number':
+          newProduct.collector_number = value
+          break
+        case 'Rarity':
+          newProduct.rarity = value
+          break
+        case 'SubType':
+        case 'SubTypes':
+          newProduct.sub_type = value
+          break
+        case 'P':
+        case 'Power':
+          newProduct.power = value
+          break
+        case 'T':
+        case 'Willpower':
+          newProduct.toughness = value
+          break
+        case 'FlavorText':
+          newProduct.flavor_text = value
+          break
+        case 'Card Type':
+        case 'CardType':
+          newProduct.card_type = value
+          break
+        case 'HP':
+          newProduct.hp = value
+          break
+        case 'Stage':
+          newProduct.stage = value
+          break
+        case 'Attack 1':
+          newProduct.attack_1 = value
+          break
+        case 'Attack 2':
+          newProduct.attack_2 = value
+          break
+        case 'Attack 3':
+          newProduct.attack_3 = value
+          break
+        case 'Attack 4':
+          newProduct.attack_4 = value
+          break
+        case 'Weakness':
+          newProduct.weakness = value
+          break
+        case 'Resistance':
+          newProduct.resistance = value
+          break
+        case 'Retreat Cost':
+          newProduct.retreat_cost = value
+          break
+        case 'Color':
+          newProduct.colour = value
+          break
+        case 'Cost':
+        case 'Cost Ink':
+          newProduct.cost = value
+          break
+        case 'Life':
+          newProduct.life = value
+          break
+        case 'Counterplus':
+          newProduct.counter = value
+          break
+        case 'Attribute':
+          newProduct.attribute = value
+          break
+        case 'Combo Power':
+          newProduct.combo_power = value
+          break
+        case 'Character Traits':
+          newProduct.sub_type = value
+          break
+        case 'Property':
+          newProduct.property = value
+          break
+        case 'InkType':
+          newProduct.ink_type = value
+          break
+        case 'Strength':
+          newProduct.power = value
+          break
+        case 'Lore Value':
+          newProduct.lore_value = value
+          break
       }
-    }
-  })
+    })
+  }
+
+  newProduct.set_id = foundProduct.set_id
+  newProduct.game_id = foundProduct.game_id
+  newProduct.external_id = {
+    tcgcsv_id: Number(foundProduct.productId),
+    tcgcsv_category_id: Number(foundProduct.categoryId),
+    tcgcsv_group_id: Number(foundProduct.groupId)
+  }
+  newProduct.name = `${foundProduct.name}`
+  newProduct.image_url = `${foundProduct.imageUrl.slice(0, -8)}400w.jpg`
+  newProduct.buying = { enabled: false, quantity: 0 }
+  newProduct.selling = { enabled: false, quantity: 0 }
+  newProduct.type = determineProductType(foundProduct, newProduct) // You should define this function
+  newProduct.last_updated = Date.now()
+
+  return newProduct
+}
+const fetchProducts = async () => {
+
+  const client = new MongoClient(uri)
+  try {
+    const enabledSetsData = await getEnabledSets()
+    if (enabledSetsData.total === 0) return
+
+    const enabledSets = enabledSetsData.data
+    console.log(enabledSets)
+
+    const productPromises = enabledSets.map(async (set) => {
+      const gameId = await getExternalIdForGame(set.game_id)
+      const [productResponse, priceResponse] = await Promise.all([
+        axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
+        axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
+      ])
+
+      const products = productResponse.data.results.map((v) => ({
+        ...v,
+        game_id: set.game_id,
+        set_id: set._id
+      }))
+
+      const prices = priceResponse.data.results
+      return { products, prices }
+    })
+
+    const results = await Promise.all(productPromises)
+
+    const products = results.flatMap((result) => result.products)
+    const prices = results.flatMap((result) => result.prices)
+
+    if (products.length === 0 || prices.length === 0) return
+
+    const productMap = new Map(products.map((product) => [product.productId, product]))
+
+    const updatedProducts = await Promise.all(
+      prices.map(async (price) => {
+        const foundProduct = productMap.get(price.productId)
+        if (!foundProduct) return null
+
+        const newProduct = extractProductData(foundProduct)
+        const newPrice = {
+          market_price: {
+            [price.subTypeName]: Number(price.marketPrice || price.midPrice)
+          },
+          timestamp: Date.now()
+        }
+
+        // const existingProduct = await client.service('products').find({
+        //   query: {
+        //     external_id: {
+        //       tcgcsv_id: newProduct.external_id.tcgcsv_id
+        //     }
+        //   }
+        // })
+
+        await client.connect();
+    const database = client.db(dbName);
+    const productsCollection = database.collection('products');
+
+        const existingProduct = await productsCollection.findOne({ 'external_id.tcgcsv_id': newProduct.external_id.tcgcsv_id });
+
+        if (existingProduct.total > 0) {
+          console.log('exists')
+          if (existingProduct.data[0].last_updated < settings.tcgcsv_last_updated) {
+            console.log('updating price')
+            newPrice.product_id = existingProduct.data[0]._id
+            await client.service('prices').create(newPrice)
+            await client
+              .service('products')
+              .patch(existingProduct.data[0]._id, { last_updated: newProduct.last_updated })
+          }
+        } else {
+          console.log('no match')
+          console.log(newProduct)
+          const insertedProduct = await client.service('products').create(newProduct)
+          newPrice.product_id = insertedProduct._id
+          await client.service('prices').create(newPrice)
+        }
+
+        return { ...newProduct }
+      })
+    )
+
+    console.log(updatedProducts.filter((product) => product !== null))
+  } catch (error) {
+    console.error('Error fetching products:', error)
+  }
 }
 
+const determineProductType = (foundProduct, newProduct) => {
+  if (foundProduct.extendedData.length <= 2) {
+    if (foundProduct.extendedData.name && foundProduct.extendedData.name.includes('Token')) {
+      return 'Single Cards'
+    } else if (foundProduct.name.includes('Code Card')) {
+      return 'Single Cards'
+    } else if (foundProduct.name.includes('Booster')) {
+      return 'Boosters'
+    } else if (foundProduct.name.includes('Deck')) {
+      return 'Decks'
+    } else if (foundProduct.name.includes('Elite Trainer Box')) {
+      return 'Elite Trainer Boxes'
+    } else if (foundProduct.name.includes('Double Pack')) {
+      return 'Boosters'
+    } else if (foundProduct.name.includes('Build & Battle Box')) {
+      return 'Build & Battle Boxes'
+    } else if (foundProduct.name.includes('Blister')) {
+      return 'Boosters'
+    } else {
+      return 'sealed'
+    }
+  } else {
+    return 'Single Cards'
+  }
+}
 const fetchTCGCSVLastUpdated = async () => {
   let latest
   await axios.get('https://tcgcsv.com/last-updated.txt').then((data) => {
-    latest = new Date(data.data) / 1000
+    latest = (new Date(data.data) / 1000) * 1000
   })
   settings.tcgcsv_last_updated = latest
-  setSettings()
+  console.log(latest)
+  await setSettings()
 }
 
 // const fetchPrices = async (game, set) => {
@@ -1165,7 +1962,8 @@ const getEnabledSets = async () => {
     .service('sets')
     .find({
       query: {
-        enabled: true
+        enabled: true,
+        $limit: 5000
       }
     })
     .then((data) => {
@@ -1264,19 +2062,12 @@ const getCredentials = () => {
 }
 
 const getSettings = async () => {
-  if (settings._id) {
-    await client
-      .service('settings')
-      .find({
-        query: {
-          _id: settings._id
-        }
-      })
-      .then((data) => {})
-  } else {
-    console.log(settings)
-    setSettings()
-  }
+  await client
+    .service('settings')
+    .find({})
+    .then((data) => {
+      settings = data.data[0]
+    })
 }
 //////////
 /* Sets */
@@ -1284,21 +2075,23 @@ const getSettings = async () => {
 
 const setBuyListPercentage = (e) => {
   settings.buylist_percentage = e.value / 100
-  saveSettings()
+  setSettings()
 }
 
 const setSettings = async () => {
-  if (settings._id) {
-    await client.service('settings').update(settings._id, settings)
-  } else {
-    await client
-      .service('settings')
-      .create(settings)
-      .then((result) => {
-        settings._id = result._id
-        console.log(settings)
-      })
-  }
+  await client
+    .service('settings')
+    .find()
+    .then(async (data) => {
+      if (data.total == 0) {
+        await client.service('settings').create(settings)
+      } else {
+        await client
+          .service('settings')
+          .patch(data.data[0]._id, settings)
+          .then((data) => console.log(data))
+      }
+    })
 }
 
 ///////////
@@ -1474,7 +2267,8 @@ const importLightspeedCSV = () => {
     header: true,
     complete: async function (results) {
       var products = results.data
-
+      var priceChanges = []
+      var largeChanges = []
       await Promise.all(
         products.map(async (product) => {
           await client
@@ -1486,12 +2280,27 @@ const importLightspeedCSV = () => {
             })
             .then(async (data) => {
               if (data.total == 1) {
+                let marketPrice = Object.keys(data.data[0].market_price[0].market_price)[0]
+                let oldPrice = Number(product.MSRP)
+                console.log(oldPrice)
+                let newPrice = retailPrice(
+                  getExchangeRate(data.data[0].market_price[0].market_price[marketPrice])
+                )
+                //found by SystemId
                 await client.service('products').patch(data.data[0]._id, {
                   pos_id: product['System ID'],
                   average_cost: product.avg_cost ? product.avg_cost : 0,
                   'selling.enabled': true,
                   'selling.quantity': product['Qty.']
                 })
+
+                priceChanges.push({ ...product, new_price: newPrice })
+
+                if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
+                  largeChanges.push({ ...product, new_price: newPrice })
+                }
+
+                console.log(data)
               } else {
                 await client
                   .service('products')
@@ -1502,12 +2311,27 @@ const importLightspeedCSV = () => {
                   })
                   .then(async (data) => {
                     if (data.total != 0) {
+                      let marketPrice = Object.keys(data.data[0].market_price[0].market_price)[0]
+                      let newPrice = retailPrice(
+                        getExchangeRate(data.data[0].market_price[0].market_price[marketPrice])
+                      )
+                      let oldPrice = Number(product.MSRP)
+                      //found by name
                       await client.service('products').patch(data.data[0]._id, {
                         pos_id: product['System ID'],
                         average_cost: product.avg_cost ? product.avg_cost : 0,
                         'selling.enabled': true,
                         'selling.quantity': product['Qty.']
                       })
+
+                      if (Math.abs(newPrice - oldPrice) > 0) {
+                        console.log(Math.abs(newPrice - oldPrice))
+                        priceChanges.push({ ...product, new_price: newPrice })
+                      }
+
+                      if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
+                        largeChanges.push({ ...product, new_price: newPrice })
+                      }
                     } else {
                       noMatch.push(product)
                     }
@@ -1516,6 +2340,11 @@ const importLightspeedCSV = () => {
             })
         })
       )
+
+      console.log(priceChanges)
+      var csv = Papa.unparse(priceChanges)
+      downloadBlob(csv, 'tcg_prices.csv', 'text/csv;charset=utf-8')
+      showLargeChanges(largeChanges)
     }
   })
 
@@ -1555,6 +2384,5 @@ login()
 applyTheme()
 showHeader()
 fetchGames()
-getSettings()
+await getSettings()
 await fetchTCGCSVLastUpdated()
-setSettings()

@@ -22,7 +22,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
   return {
     paginate: app.get('paginate'),
     Model: app.get('mongodbClient').then((db) => db.collection('prices')).then((collection) => {
-      collection.createIndex({ timestamp: 1})
+      collection.createIndex({ product_id: 1})
       return collection
     })
   }

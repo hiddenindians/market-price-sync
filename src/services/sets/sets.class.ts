@@ -20,7 +20,10 @@ export class SetsService<ServiceParams extends Params = SetsParams> extends Mong
 
 export const getOptions = (app: Application): MongoDBAdapterOptions => {
   return {
-    paginate: app.get('paginate'),
+    paginate: {
+      default: 10,
+      max: 5000
+    },
     Model: app.get('mongodbClient').then((db) => db.collection('sets'))
   }
 }

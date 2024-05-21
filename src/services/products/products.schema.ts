@@ -14,8 +14,11 @@ export const productsSchema = Type.Object(
     _id: ObjectIdSchema(),
     game_id: ObjectIdSchema(),
     set_id: ObjectIdSchema(),
+
     external_id: Type.Object({
-      tcgcsv_id: Type.Optional(Type.Number())
+      tcgcsv_id: Type.Optional(Type.Number()),
+      tcgcsv_category_id: Type.Optional(Type.Number()),
+      tcgcsv_group_id : Type.Optional(Type.Number()),
     }),
     image_url: Type.Optional(Type.String()),
     selling: Type.Object({
@@ -137,7 +140,7 @@ export const productsPatchSchema = Type.Intersect([
   Type.Partial(Type.Object({ 'selling.enabled': Type.Boolean() })),
   Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
   Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
-  Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
+  Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
 ], {
   $id: 'ProductsPatch'
 })
