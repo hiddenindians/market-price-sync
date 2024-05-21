@@ -189,7 +189,8 @@ export const productsQuerySchema = Type.Intersect(
     Type.Object(
       {
         'selling.enabled': queryProperty(Type.Boolean()),
-        'selling.quantity': queryProperty(Type.Number())
+        'selling.quantity': queryProperty(Type.Number()),
+        'external_id.tcgcsv_id': queryProperty(Type.Number())
       },
       { additionalProperties: false }
     )

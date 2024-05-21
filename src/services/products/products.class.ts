@@ -27,8 +27,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       max: 500000
     },
     Model: app.get('mongodbClient').then((db) => db.collection('products')).then((collection) => {
-      collection.createIndex({ name: 1})
-      collection.createIndex({'external_id.tcgcsv_id': 1})
+      collection.createIndex({name: 1, 'external_id.tcgcsv_id': 1}, {unique: true})
       return collection
     })
   }
