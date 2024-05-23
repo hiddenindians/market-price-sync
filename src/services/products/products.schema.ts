@@ -141,6 +141,8 @@ export const productsPatchSchema = Type.Intersect([
   Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
   Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
   Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
+  Type.Partial(Type.Object({ 'last_updated': Type.Number() })), // Add this line
+ 
 ], {
   $id: 'ProductsPatch'
 })

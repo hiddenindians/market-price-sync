@@ -5,6 +5,7 @@ import type { MongoDBAdapterParams, MongoDBAdapterOptions } from '@feathersjs/mo
 
 import type { Application } from '../../declarations'
 import type { Sets, SetsData, SetsPatch, SetsQuery } from './sets.schema'
+import { Collection } from 'mongodb'
 
 export type { Sets, SetsData, SetsPatch, SetsQuery }
 
@@ -24,6 +25,9 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       default: 10,
       max: 5000
     },
-    Model: app.get('mongodbClient').then((db) => db.collection('sets'))
+    Model: app.get('mongodbClient').then((db) => db.collection('sets')).then( (collection) => {
+      collection.createIndex({'external_id.tcgcsv_id': 1}, {unique: true})
+      return collection
+    })
   }
 }

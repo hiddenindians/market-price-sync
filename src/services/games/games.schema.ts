@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema'
-import { Type, getValidator, querySyntax } from '@feathersjs/typebox'
+import { Type, getValidator, queryProperty, querySyntax } from '@feathersjs/typebox'
 import { ObjectIdSchema } from '@feathersjs/typebox'
 import type { Static } from '@feathersjs/typebox'
 
@@ -15,7 +15,7 @@ export const gamesSchema = Type.Object(
     name: Type.String(),
     logo: Type.Optional(Type.String()),
     external_id: Type.Object({
-      tcgcsvId: Type.Optional(Type.Number()),
+      tcgcsv_id: Type.Optional(Type.Number()),
     }),
     enabled: Type.Boolean({default: false}),
 
@@ -48,11 +48,19 @@ export const gamesPatchResolver = resolve<Games, HookContext<GamesService>>({})
 export const gamesQueryProperties = Type.Pick(gamesSchema, ['_id', 'external_id', 'enabled'])
 export const gamesQuerySchema = Type.Intersect(
   [
-    querySyntax(gamesQueryProperties),
-    // Add additional query properties here
-    Type.Object({}, { additionalProperties: false })
+    querySyntax(gamesQueryProperties, {
+     
+    }),
+    Type.Object(
+      {
+        'external_id.tcgcsv_id': queryProperty(Type.Number())
+      },
+      { additionalProperties: false }
+    )
   ],
-  { additionalProperties: false }
+  {
+    additionalProperties: false
+  }
 )
 export type GamesQuery = Static<typeof gamesQuerySchema>
 export const gamesQueryValidator = getValidator(gamesQuerySchema, queryValidator)
