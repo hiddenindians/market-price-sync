@@ -4,6 +4,30 @@ import type { TransportConnection, Application } from '@feathersjs/feathers'
 import authenticationClient from '@feathersjs/authentication-client'
 import type { AuthenticationClientOptions } from '@feathersjs/authentication-client'
 
+import { fetchProductsAndPricesClient } from './services/fetch-products-and-prices/fetch-products-and-prices.shared'
+export type {
+  FetchProductsAndPrices,
+  FetchProductsAndPricesData,
+  FetchProductsAndPricesQuery,
+  FetchProductsAndPricesPatch
+} from './services/fetch-products-and-prices/fetch-products-and-prices.shared'
+
+import { fetchSetsClient } from './services/fetch-sets/fetch-sets.shared'
+export type {
+  FetchSets,
+  FetchSetsData,
+  FetchSetsQuery,
+  FetchSetsPatch
+} from './services/fetch-sets/fetch-sets.shared'
+
+import { fetchGamesClient } from './services/fetch-games/fetch-games.shared'
+export type {
+  FetchGames,
+  FetchGamesData,
+  FetchGamesQuery,
+  FetchGamesPatch
+} from './services/fetch-games/fetch-games.shared'
+
 import { settingsClient } from './services/settings/settings.shared'
 export type {
   Settings,
@@ -64,5 +88,8 @@ export const createClient = <Configuration = any,>(
   client.configure(productsClient)
   client.configure(pricesClient)
   client.configure(settingsClient)
+  client.configure(fetchGamesClient)
+  client.configure(fetchSetsClient)
+  client.configure(fetchProductsAndPricesClient)
   return client
 }
