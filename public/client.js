@@ -9,7 +9,7 @@ client.configure(feathers.socketio(socket))
 client.configure(feathers.authentication())
 
 var settings = {
-  limit: 5000,
+  limit: 10,
   skip: 0,
   buylist_percentage: 0.6,
   timeout: 500,
@@ -35,6 +35,248 @@ const cacheExchangeRate = async () => {
 }
 const CAD = await cacheExchangeRate()
 
+const router = new Navigo('/')
+
+//////////
+/* Gets */
+//////////
+const getProductsForGame = async (gameId, limit, skip) => {
+  let toReturn = null
+  await client
+    .service('products')
+    .find({
+      query: {
+        game_id: gameId,
+        $sort: {
+          collector_number: 1
+        },
+        $limit: limit,
+        $skip: skip
+      }
+    })
+    .then((data) => {
+      console.log(data.data)
+      toReturn = data
+    })
+
+  return toReturn
+}
+
+const getProductsForSet = async (setId, limit, skip) => {
+  let toReturn = null
+
+  await client
+    .service('products')
+    .find({
+      query: {
+        set_id: setId,
+        $sort: {
+          collector_number: 1
+        },
+        $limit: limit,
+        $skip: skip
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+
+  return toReturn
+}
+
+const getSellingForSet = async (setId, limit, skip) => {
+  let toReturn = null
+
+  await client
+    .service('products')
+    .find({
+      query: {
+        set_id: setId,
+        'selling.enabled': true,
+        'selling.quantity': { $gte: 0 },
+        $limit: limit,
+        $skip: skip,
+        $sort: {
+          collector_number: 1
+        }
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+
+  return toReturn
+}
+const getSellingForGame = async (gameId, limit, skip) => {
+  let toReturn = null
+
+  await client
+    .service('products')
+    .find({
+      query: {
+        game_id: gameId,
+        'selling.enabled': true,
+        'selling.quantity': { $gte: 0 },
+        $limit: limit,
+        $skip: skip,
+        $sort: {
+          collector_number: 1
+        }
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+
+  return toReturn
+}
+
+const getEnabledGames = async () => {
+  let toReturn = null
+  await client
+    .service('games')
+    .find({
+      query: {
+        enabled: true
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+  return toReturn
+}
+
+const getExternalIdForGame = async (gameId) => {
+  let toReturn = null
+  await client
+    .service('games')
+    .find({
+      query: {
+        _id: gameId
+      }
+    })
+    .then((data) => {
+      if (data.data[0].external_id) {
+        toReturn = data.data[0].external_id.tcgcsv_id
+      }
+    })
+
+  return toReturn
+}
+
+const getEnabledSets = async () => {
+  let toReturn = null
+  await client
+    .service('sets')
+    .find({
+      query: {
+        enabled: true,
+        $limit: 5000
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+  return toReturn
+}
+const getAllGames = async (limit, skip) => {
+  let toReturn = null
+  await client
+    .service('games')
+    .find({
+      query: {
+        $sort: {
+          external_id: 1
+        },
+        $limit: limit,
+        $skip: skip
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+
+  return toReturn
+}
+
+const getAllSetsForGame = async (gameId, limit, skip) => {
+  let toReturn = null
+
+  await client
+    .service('sets')
+    .find({
+      query: {
+        game_id: gameId,
+        $sort: {
+          external_id: -1
+        },
+        $limit: limit,
+        $skip: skip
+      }
+    })
+    .then((data) => {
+      toReturn = data
+    })
+
+  return toReturn
+}
+
+const getGameNameFromId = async (gameId) => {
+  let toReturn = null
+
+  await client
+    .service('games')
+    .find({
+      query: {
+        _id: gameId
+      }
+    })
+    .then((data) => {
+      if (data.total != 0) {
+        toReturn = data.data[0].name
+      }
+    })
+  return toReturn
+}
+
+const getSetNameFromId = async (setId) => {
+  let toReturn = null
+
+  await client
+    .service('sets')
+    .find({
+      query: {
+        _id: setId
+      }
+    })
+    .then((data) => {
+      if (data.total != 0) {
+        toReturn = data.data[0].name
+      }
+    })
+  return toReturn
+}
+
+const getExchangeRate = (price) => {
+  return price * CAD
+}
+
+const getCredentials = () => {
+  const user = {
+    email: document.querySelector('[name="email"]').value,
+    password: document.querySelector('[name="password"]').value
+  }
+  return user
+}
+
+const getSettings = async () => {
+  await client
+    .service('settings')
+    .find({})
+    .then((data) => {
+      settings = data.data[0]
+    })
+}
 /////////////////////
 /* Event Listeners */
 /////////////////////
@@ -54,6 +296,21 @@ const debounce = (func, wait) => {
     timeout = setTimeout(() => func.apply(this, args), wait)
   }
 }
+
+document.addEventListener('click', (e) => {
+  if (e.target.matches('.show-set-list')) {
+    const gameId = e.target.dataset.id
+    router.navigate(`/sets/${gameId}`)
+  } else if (e.target.matches('.show-product-list')) {
+    const scope = e.target.dataset.scope
+    const id = e.target.dataset.id
+    router.navigate(`/products/${scope}/${id}`)
+  } else if (e.target.matches('#home')) {
+    router.navigate('/')
+  } else if (e.target.matches('.show-games-list')) {
+    router.navigate('/games')
+  }
+})
 // "Signup and login" button click handler
 addEventListener('#signup', 'click', async () => {
   // For signup, create a new user and then log them in
@@ -72,7 +329,6 @@ addEventListener('#toggle-drawer', 'click', async () => {
   const drawer = document.getElementById('drawer')
   drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none'
 })
-addEventListener('#home', 'click', () => showDashboard())
 // addEventListener('#search', 'change', (e) => {
 //   clearTimeout(timeout)
 //   timeout = setTimeout(function () {
@@ -82,12 +338,7 @@ addEventListener('#home', 'click', () => showDashboard())
 addEventListener('.show-games-list', 'click', async (e) => {
   showGameList(settings.limit, e.target.dataset.skip)
 })
-addEventListener('.show-set-list', 'click', async (e) => {
-  showSetList(e.target.dataset.id)
-})
-addEventListener('.show-product-list', 'click', async (e) => {
-  showProductList(e.target.dataset.scope, e.target.dataset.id, settings.limit)
-})
+
 addEventListener('.update-data', 'click', async (e) => {
   const startTime = Date.now()
   const updatingElement = document.getElementById('updating')
@@ -189,18 +440,20 @@ const showLogin = () => {
   document.getElementById('app').innerHTML = loginTemplate()
 }
 const showDashboard = async () => {
-  document.getElementById('app').innerHTML = dashboardTemplate()
-  //populate game list
-  const container = document.getElementById('list')
-  const tableHead = document.getElementById('table-head')
-  tableHead.innerHTML += `
+  try {
+    await client.reAuthenticate()
+    document.getElementById('app').innerHTML = dashboardTemplate()
+    //populate game list
+    const container = document.getElementById('list')
+    const tableHead = document.getElementById('table-head')
+    tableHead.innerHTML += `
     <th scope='col' class='px-6 py-3'>Name</th>
     <th scope='col' class='px-6 py-3'>Manage Sets</th>
     <th scope='col' class='px-6 py-3'>Manage Products</th>`
-  const data = await getEnabledGames()
-  const enabledGames = data.data
-  enabledGames.forEach((game) => {
-    container.innerHTML += `
+    const data = await getEnabledGames()
+    const enabledGames = data.data
+    enabledGames.forEach((game) => {
+      container.innerHTML += `
       <th scope='row'>
         <div class='flex items-center gap-3'>
           <div class='max-h-24 rounded'>
@@ -217,10 +470,17 @@ const showDashboard = async () => {
       <td>
         <button data-id='${game._id}' data-scope='game' class="show-product-list btn">Manage Products</button>
       </td>`
-  })
-  paginate('game', null, data.total, data.limit, data.skip)
+    })
+    paginate('game', null, data.total, data.limit, data.skip)
+  } catch (error) {
+    console.error('Authentication error:', error)
+
+    showLogin()
+  }
 }
-const showSettings = () => {
+const showSettings = async () => {
+  try {
+    await client.reAuthenticate()
   document.getElementById('app').innerHTML = `
     <section>
       <label class="form-control">
@@ -230,8 +490,17 @@ const showSettings = () => {
       </label>
     </section>
   `
+  } catch (error) {
+    console.error('Authentication error:', error)
+
+    showLogin()
+  }
 }
 const showGameList = async (limit, skip) => {
+  try {
+    console.log('Attempting to reauthenticate...');
+    await client.reAuthenticate();
+    console.log('Reauthentication successful');
   document.getElementById('app').innerHTML = setListTemplate
   document.getElementById('search').dataset.scope = 'game'
   document.getElementById('table-head').innerHTML += `
@@ -251,8 +520,15 @@ const showGameList = async (limit, skip) => {
     })
     paginate('games', null, data.total, data.limit, data.skip)
   }
+}catch (error) {
+  console.error('Authentication error:', error)
+
+  showLogin()
+}
 }
 const showSetList = async (gameId, limit, skip) => {
+  try {
+    await client.reAuthenticate()
   document.getElementById('app').innerHTML = setListTemplate
   document.getElementById('search').dataset.scope = 'set'
   document.getElementById('search').dataset.id = gameId
@@ -276,8 +552,20 @@ const showSetList = async (gameId, limit, skip) => {
     })
     paginate('set', gameId, data.total, data.limit, data.skip)
   }
+  }
+  catch (error) {
+    console.error('Authentication error:', error)
+
+    showLogin()
+  }
 }
 const showProductList = async (scope, id, limit, skip) => {
+  try {
+    await client.reAuthenticate()
+  console.log(scope,id,limit,skip)
+  if(!document.getElementById('list')) {
+  await showDashboard()
+  }
   document.getElementById('list').innerHTML = ''
   document.getElementById('search').dataset.scope = scope
   document.getElementById('search').dataset.id = id
@@ -302,6 +590,11 @@ const showProductList = async (scope, id, limit, skip) => {
     data.data.forEach(showProduct)
     paginate(`products-for-${scope}`, id, data.total, data.limit, data.skip)
   }
+}  catch (error) {
+  console.error('Authentication error:', error)
+
+  showLogin()
+}
 }
 const showProduct = (product) => {
   const USDollar = new Intl.NumberFormat('en-US', {
@@ -336,6 +629,43 @@ const showProduct = (product) => {
       <td>${product.pos_id || 'N/A'}</td>
     </tr>`
 }
+
+/////////////
+/* Routing */
+/////////////
+
+router
+  .on({
+    '/': () => {
+      showDashboard()
+    },
+    '/games': async () => {
+
+      try {
+  
+        await client.reAuthenticate();
+  
+        showGameList();
+  
+      } catch (error) {
+  
+        console.error('Authentication error:', error);
+  
+        showLogin();
+  
+      }
+  
+    },
+    '/sets/:gameId': (params) => {
+      showSetList(params.data.gameId, settings.limit, settings.skip)
+    },
+    '/products/:scope/:id': (params) => {
+      console.log(params)
+      showProductList(params.data.scope, params.data.id, settings.limit, settings.skip)
+    }
+  })
+  .resolve()
+
 const showLargeChanges = (changes) => {
   document.getElementById('app').innerHTML = setListTemplate
   document.getElementById('search').dataset.scope = 'game'
@@ -675,247 +1005,6 @@ const fetchTCGCSVLastUpdated = async () => {
 }
 
 //////////
-/* Gets */
-//////////
-const getProductsForGame = async (gameId, limit, skip) => {
-  let toReturn = null
-  await client
-    .service('products')
-    .find({
-      query: {
-        game_id: gameId,
-        $sort: {
-          collector_number: 1
-        },
-        $limit: limit,
-        $skip: skip,
-     
-      }
-    })
-    .then((data) => {
-      console.log(data.data)
-      toReturn = data
-    })
-
-  return toReturn
-}
-
-const getProductsForSet = async (setId, limit, skip) => {
-  let toReturn = null
-
-  await client
-    .service('products')
-    .find({
-      query: {
-        set_id: setId,
-        $sort: {
-          collector_number: 1
-        },
-        $limit: limit,
-        $skip: skip
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-
-  return toReturn
-}
-
-const getSellingForSet = async (setId, limit, skip) => {
-  let toReturn = null
-
-  await client
-    .service('products')
-    .find({
-      query: {
-        set_id: setId,
-        'selling.enabled': true,
-        'selling.quantity': { $gte: 0 },
-        $limit: limit,
-        $skip: skip,
-        $sort: {
-          collector_number: 1
-        }
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-
-  return toReturn
-}
-const getSellingForGame = async (gameId, limit, skip) => {
-  let toReturn = null
-
-  await client
-    .service('products')
-    .find({
-      query: {
-        game_id: gameId,
-        'selling.enabled': true,
-        'selling.quantity': { $gte: 0 },
-        $limit: limit,
-        $skip: skip,
-        $sort: {
-          collector_number: 1
-        }
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-
-  return toReturn
-}
-
-const getEnabledGames = async () => {
-  let toReturn = null
-  await client
-    .service('games')
-    .find({
-      query: {
-        enabled: true
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-  return toReturn
-}
-
-const getExternalIdForGame = async (gameId) => {
-  let toReturn = null
-  await client
-    .service('games')
-    .find({
-      query: {
-        _id: gameId
-      }
-    })
-    .then((data) => {
-      if (data.data[0].external_id) {
-        toReturn = data.data[0].external_id.tcgcsv_id
-      }
-    })
-
-  return toReturn
-}
-
-const getEnabledSets = async () => {
-  let toReturn = null
-  await client
-    .service('sets')
-    .find({
-      query: {
-        enabled: true,
-        $limit: 5000
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-  return toReturn
-}
-const getAllGames = async (limit, skip) => {
-  let toReturn = null
-  await client
-    .service('games')
-    .find({
-      query: {
-        $sort: {
-          external_id: 1
-        },
-        $limit: limit,
-        $skip: skip
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-
-  return toReturn
-}
-
-const getAllSetsForGame = async (gameId, limit, skip) => {
-  let toReturn = null
-
-  await client
-    .service('sets')
-    .find({
-      query: {
-        game_id: gameId,
-        $sort: {
-          external_id: -1
-        },
-        $limit: limit,
-        $skip: skip
-      }
-    })
-    .then((data) => {
-      toReturn = data
-    })
-
-  return toReturn
-}
-
-const getGameNameFromId = async (gameId) => {
-  let toReturn = null
-
-  await client
-    .service('games')
-    .find({
-      query: {
-        _id: gameId
-      }
-    })
-    .then((data) => {
-      if (data.total != 0) {
-        toReturn = data.data[0].name
-      }
-    })
-  return toReturn
-}
-
-const getSetNameFromId = async (setId) => {
-  let toReturn = null
-
-  await client
-    .service('sets')
-    .find({
-      query: {
-        _id: setId
-      }
-    })
-    .then((data) => {
-      if (data.total != 0) {
-        toReturn = data.data[0].name
-      }
-    })
-  return toReturn
-}
-
-const getExchangeRate = (price) => {
-  return price * CAD
-}
-
-const getCredentials = () => {
-  const user = {
-    email: document.querySelector('[name="email"]').value,
-    password: document.querySelector('[name="password"]').value
-  }
-  return user
-}
-
-const getSettings = async () => {
-  await client
-    .service('settings')
-    .find({})
-    .then((data) => {
-      settings = data.data[0]
-    })
-}
-//////////
 /* Sets */
 //////////
 
@@ -1198,27 +1287,42 @@ const importLightspeedCSV = () => {
 }
 
 // Log in either using the given email/password or the token from storage
-const login = async (credentials) => {
+// const login = async (credentials) => {
+//   try {
+//     if (!credentials) {
+//       // Try to authenticate using an existing token
+//       console.log('reauth')
+//       await client.reAuthenticate()
+//     } else {
+//       console.log('auth')
+
+//       // Otherwise log in with the `local` strategy using the credentials we got
+//       await client.authenticate({
+//         strategy: 'local',
+//         ...credentials
+//       })
+//     }
+
+//     // If successful, show the chat page
+//     showDashboard()
+//   } catch (error) {
+//     // If we got an error, show the login page
+//     showLogin(error)
+//   }
+// }
+
+const login = async (email, password) => {
   try {
-    if (!credentials) {
-      // Try to authenticate using an existing token
-      console.log('reauth')
-      await client.reAuthenticate()
-    } else {
-      console.log('auth')
-
-      // Otherwise log in with the `local` strategy using the credentials we got
-      await client.authenticate({
-        strategy: 'local',
-        ...credentials
-      })
-    }
-
-    // If successful, show the chat page
-    showDashboard()
+    const response = await client.authenticate({
+      strategy: 'local',
+      email,
+      password
+    })
+    localStorage.setItem('feathers-jwt', response.accessToken)
+    router.navigate('/')
   } catch (error) {
-    // If we got an error, show the login page
-    showLogin(error)
+    console.error('Login error:', error)
+    alert('Login failed')
   }
 }
 
@@ -1226,7 +1330,11 @@ const applyTheme = () => {
   document.documentElement.dataset.theme = userSettings.theme
 }
 
-login()
+client.reAuthenticate().catch(() => {
+
+  showLogin()
+
+})
 applyTheme()
 showHeader()
 fetchGames()

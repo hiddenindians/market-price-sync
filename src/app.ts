@@ -3,7 +3,8 @@ import { feathers } from '@feathersjs/feathers'
 import configuration from '@feathersjs/configuration'
 import { koa, rest, bodyParser, errorHandler, parseAuthentication, cors, serveStatic } from '@feathersjs/koa'
 import socketio from '@feathersjs/socketio'
-
+import path from 'path'
+import send from 'koa-send'
 import { configurationValidator } from './configuration'
 import type { Application } from './declarations'
 import { logError } from './hooks/log-error'
@@ -52,5 +53,35 @@ app.hooks({
   setup: [],
   teardown: []
 })
+
+// Middleware to set cookies with appropriate attributes
+
+app.use(async (ctx, next) => {
+
+  ctx.cookies.set('your-cookie-name', 'your-cookie-value', {
+
+    httpOnly: true,
+
+    secure: process.env.NODE_ENV === 'production',
+
+    sameSite: 'none'
+
+  });
+
+  await next();
+
+});
+// Serve the index.html file for all non-API routes, excluding static assets
+
+app.use(async (ctx, next) => {
+  if (ctx.accepts('html') && ctx.method === 'GET' && !ctx.path.startsWith('/api') && !ctx.path.includes('.')) {
+    await send(ctx, 'index.html', { root: path.join(__dirname, '..', 'public') });
+  } else {
+    await next();
+  }
+
+});
+
+
 
 export { app }
