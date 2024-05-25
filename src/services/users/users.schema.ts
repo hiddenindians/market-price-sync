@@ -9,12 +9,19 @@ import type { HookContext } from '../../declarations'
 import { dataValidator, queryValidator } from '../../validators'
 import type { UserService } from './users.class'
 
+const Roles = {
+  ADMIN: 'admin',
+  MANAGER: 'manager',
+  EMPLOYEE: 'employee'
+} as const;
 // Main data model schema
 export const userSchema = Type.Object(
   {
     _id: ObjectIdSchema(),
-    email: Type.String(),
-    password: Type.Optional(Type.String())
+    email: Type.String( {format: 'email'}),
+    password: Type.Optional(Type.String()),
+    store_id: ObjectIdSchema(),
+    role: Type.Enum(Roles)
   },
   { $id: 'User', additionalProperties: false }
 )

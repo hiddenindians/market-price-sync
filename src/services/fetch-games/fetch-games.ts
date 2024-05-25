@@ -6,7 +6,7 @@ import { FetchGamesService, getOptions } from './fetch-games.class'
 import { fetchGamesPath, fetchGamesMethods } from './fetch-games.shared'
 export * from './fetch-games.class'
 
-const axios = require('axios/dist/node/axios.cjs')
+import axios from 'axios';  // Corrected import statement
 
 // A configure function that registers the service and its hooks via `app.configure`
 export const fetchGames = (app: Application) => {

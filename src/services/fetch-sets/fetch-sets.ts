@@ -4,7 +4,7 @@ import { authenticate } from '@feathersjs/authentication'
 import type { Application } from '../../declarations'
 import { FetchSetsService, getOptions } from './fetch-sets.class'
 import { fetchSetsPath, fetchSetsMethods } from './fetch-sets.shared'
-const axios = require('axios/dist/node/axios.cjs')
+import axios from 'axios';  // Corrected import statement
 
 export * from './fetch-sets.class'
 
@@ -27,7 +27,7 @@ export const fetchSets = (app: Application) => {
       find: [],
       get: [],
       create: [async ()=>{
-        await app.service('games').find({query: { enabled: true}}).then(async (data) => {
+        await app.service('games').find({query: {$limit: 100000}}).then(async (data) => {
           if (data.total != 0) {
             let results = data.data
             results.forEach(async (result) => {

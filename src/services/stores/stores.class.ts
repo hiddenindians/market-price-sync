@@ -4,26 +4,23 @@ import { MongoDBService } from '@feathersjs/mongodb'
 import type { MongoDBAdapterParams, MongoDBAdapterOptions } from '@feathersjs/mongodb'
 
 import type { Application } from '../../declarations'
-import type { Games, GamesData, GamesPatch, GamesQuery } from './games.schema'
+import type { Stores, StoresData, StoresPatch, StoresQuery } from './stores.schema'
 
-export type { Games, GamesData, GamesPatch, GamesQuery }
+export type { Stores, StoresData, StoresPatch, StoresQuery }
 
-export interface GamesParams extends MongoDBAdapterParams<GamesQuery> {}
+export interface StoresParams extends MongoDBAdapterParams<StoresQuery> {}
 
 // By default calls the standard MongoDB adapter service methods but can be customized with your own functionality.
-export class GamesService<ServiceParams extends Params = GamesParams> extends MongoDBService<
-  Games,
-  GamesData,
-  GamesParams,
-  GamesPatch
+export class StoresService<ServiceParams extends Params = StoresParams> extends MongoDBService<
+  Stores,
+  StoresData,
+  StoresParams,
+  StoresPatch
 > {}
 
 export const getOptions = (app: Application): MongoDBAdapterOptions => {
   return {
-    paginate: {
-      default: 10,
-      max: 500000
-    },
-    Model: app.get('mongodbClient').then((db) => db.collection('games'))
+    paginate: app.get('paginate'),
+    Model: app.get('mongodbClient').then((db) => db.collection('stores'))
   }
 }
