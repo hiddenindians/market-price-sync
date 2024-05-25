@@ -23,7 +23,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
   return {
     paginate: {
       default: 10,
-      max: 5000
+      max: 500000
     },
     Model: app.get('mongodbClient').then((db) => db.collection('sets')).then( (collection) => {
       collection.createIndex({'external_id.tcgcsv_id': 1}, {unique: true})

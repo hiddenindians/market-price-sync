@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb'
 import { Products } from '../client'
 import type { HookContext } from '../declarations'
 import { start } from 'repl'
-const axios = require('axios/dist/node/axios.cjs')
+import axios from 'axios';  // Corrected import statement
 
 export const processProductsAndPrices = async (context: HookContext) => {
   console.log(`Running hook process-products-and-prices on ${context.path}.${context.method}`)
@@ -210,8 +210,12 @@ export const processProductsAndPrices = async (context: HookContext) => {
           case 'Lore Value':
             newProduct.lore_value = value
             break
-        }
+          default:
+            console.log(`${name}: ${value}`)
+        } 
       })
+    } else {
+      console.log(foundProduct)
     }
 
     newProduct.set_id = foundProduct.set_id
@@ -235,8 +239,11 @@ export const processProductsAndPrices = async (context: HookContext) => {
     const startTime = Date.now()
     console.log("starting")
     try {
-      const enabledSetsData = await context.app.service('sets').find({ query: { enabled: true, $limit: 5000 } })
-      if (enabledSetsData.total === 0) return
+      const enabledSetsData = await context.app.service('sets').find({ query: { $limit: 100000 } })
+      if (enabledSetsData.total === 0) {
+        console.log("no sets")
+        return
+      } 
 
       const enabledSets = enabledSetsData.data
 
