@@ -21,6 +21,10 @@ export const setsSchema = Type.Object(
     code: Type.Optional(Type.String()),
     enabled: Type.Boolean({default: false}),
     first_run: Type.Boolean(),
+    store_status: Type.Array(Type.Object({
+      store_id: ObjectIdSchema(),
+      visible: Type.Boolean({ default: false })
+    }))
   /* Scryfall/Pokemonio data */
   //parent_set_code: Type.Optional(Type.String()),
   //tcgplayer_id: Type.Optional(Type.String()),

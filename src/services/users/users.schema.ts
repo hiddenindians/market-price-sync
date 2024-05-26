@@ -14,6 +14,7 @@ const Roles = {
   MANAGER: 'manager',
   EMPLOYEE: 'employee'
 } as const;
+
 // Main data model schema
 export const userSchema = Type.Object(
   {

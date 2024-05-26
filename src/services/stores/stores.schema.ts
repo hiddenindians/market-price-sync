@@ -12,7 +12,13 @@ import type { StoresService } from './stores.class'
 export const storesSchema = Type.Object(
   {
     _id: ObjectIdSchema(),
-    text: Type.String()
+    name: Type.String(),
+    enabled_sets: Type.Array(Type.Any()),
+    enabled_games: Type.Array(Type.Any()),
+    enabled_oems: Type.Array(Type.Any()),
+    enabled_consoles: Type.Array(Type.Any()),
+    allow_buying: Type.Boolean(),
+    allow_selling: Type.Boolean()
   },
   { $id: 'Stores', additionalProperties: false }
 )
@@ -23,7 +29,7 @@ export const storesResolver = resolve<Stores, HookContext<StoresService>>({})
 export const storesExternalResolver = resolve<Stores, HookContext<StoresService>>({})
 
 // Schema for creating new entries
-export const storesDataSchema = Type.Pick(storesSchema, ['text'], {
+export const storesDataSchema = Type.Pick(storesSchema, ['name'], {
   $id: 'StoresData'
 })
 export type StoresData = Static<typeof storesDataSchema>
@@ -39,7 +45,7 @@ export const storesPatchValidator = getValidator(storesPatchSchema, dataValidato
 export const storesPatchResolver = resolve<Stores, HookContext<StoresService>>({})
 
 // Schema for allowed query properties
-export const storesQueryProperties = Type.Pick(storesSchema, ['_id', 'text'])
+export const storesQueryProperties = Type.Pick(storesSchema, ['_id', 'name'])
 export const storesQuerySchema = Type.Intersect(
   [
     querySyntax(storesQueryProperties),

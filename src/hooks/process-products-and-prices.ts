@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb'
 import { Products } from '../client'
 import type { HookContext } from '../declarations'
 import { start } from 'repl'
-import axios from 'axios';  // Corrected import statement
+import axios from 'axios' // Corrected import statement
 
 export const processProductsAndPrices = async (context: HookContext) => {
   console.log(`Running hook process-products-and-prices on ${context.path}.${context.method}`)
@@ -65,16 +65,22 @@ export const processProductsAndPrices = async (context: HookContext) => {
     type: string
     last_updated: number
     _id: string
+    market_price?: {
+      foil?: number
+      regular?: number
+      reverse_foil?: number
+      timestamp: number
+    }
   }
 
   interface Price {
-    product_id: string | {};
+    product_id: string | {}
     market_price: {
-      foil?: number;
-      normal?: number;
-      reverse_foil?: number;
-    };
-    timestamp: number;
+      foil?: number
+      normal?: number
+      reverse_foil?: number
+    }
+    timestamp: number
   }
 
   interface EnabledSet {
@@ -212,7 +218,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
             break
           default:
             console.log(`${name}: ${value}`)
-        } 
+        }
       })
     } else {
       console.log(foundProduct)
@@ -237,13 +243,13 @@ export const processProductsAndPrices = async (context: HookContext) => {
   }
   const fetchProducts = async () => {
     const startTime = Date.now()
-    console.log("starting")
+    console.log('starting')
     try {
       const enabledSetsData = await context.app.service('sets').find({ query: { $limit: 100000 } })
       if (enabledSetsData.total === 0) {
-        console.log("no sets")
+        console.log('no sets')
         return
-      } 
+      }
 
       const enabledSets = enabledSetsData.data
 
@@ -279,7 +285,6 @@ export const processProductsAndPrices = async (context: HookContext) => {
           if (!foundProduct) return null
 
           const newProduct = extractProductData(foundProduct)
-         
 
           if (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) {
             if (
@@ -314,15 +319,14 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
           const settingsData = await context.app.service('settings').find()
           const settings = settingsData.data[0]
-
+          const newPrice: Price = {
+            market_price: {
+              [price.subTypeName]: Number(price.marketPrice || price.midPrice)
+            },
+            timestamp: Date.now(),
+            product_id: existingProduct._id
+          }
           if (existingProductData.total == 1) {
-            const newPrice: Price = {
-              market_price: {
-                [price.subTypeName]: Number(price.marketPrice || price.midPrice)
-              },
-              timestamp: Date.now(),
-              product_id: existingProduct._id
-            }
             console.log('exists')
             if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
               console.log('updating price')
@@ -330,21 +334,18 @@ export const processProductsAndPrices = async (context: HookContext) => {
               var _id = existingProduct._id as string
               await context.app
                 .service('products')
-                .patch(_id, { last_updated: newProduct.last_updated })
+                .patch(_id, {
+                  last_updated: newProduct.last_updated,
+                  market_price: { ...newPrice.market_price, timestamp: Date.now() }
+                })
             }
           } else if (existingProductData.total > 1) {
             console.log('found too many')
           } else {
             console.log('no match')
-           // console.log(newProduct)
+            // console.log(newProduct)
+            newProduct.market_price = { ...newPrice.market_price, timestamp: Date.now()}
             const insertedProduct = await context.app.service('products').create(newProduct)
-            const newPrice: Price = {
-              market_price: {
-                [price.subTypeName]: Number(price.marketPrice || price.midPrice)
-              },
-              timestamp: Date.now(),
-              product_id: insertedProduct._id
-            }
             await context.app.service('prices').create(newPrice)
           }
 
@@ -357,7 +358,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
       console.error('Error fetching products:', error)
     }
 
-    console.log(`Done. Took ${(Date.now() - startTime)/1000} seconds`)
+    console.log(`Done. Took ${(Date.now() - startTime) / 1000} seconds`)
   }
 
   const determineProductType = (foundProduct: any) => {
@@ -388,5 +389,5 @@ export const processProductsAndPrices = async (context: HookContext) => {
     }
   }
 
-  fetchProducts()
+  // fetchProducts()
 }

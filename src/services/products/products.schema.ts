@@ -18,7 +18,7 @@ export const productsSchema = Type.Object(
     external_id: Type.Object({
       tcgcsv_id: Type.Optional(Type.Number()),
       tcgcsv_category_id: Type.Optional(Type.Number()),
-      tcgcsv_group_id : Type.Optional(Type.Number()),
+      tcgcsv_group_id: Type.Optional(Type.Number())
     }),
     image_url: Type.Optional(Type.String()),
     selling: Type.Object({
@@ -33,7 +33,12 @@ export const productsSchema = Type.Object(
       quantity: Type.Optional(Type.Number({ default: 0 }))
     }),
     last_updated: Type.Number(),
-    market_price: Type.Optional(Type.Array(Type.Object({}))),
+    market_price: Type.Optional(Type.Object({
+      foil: Type.Optional(Type.Number()),
+      normal: Type.Optional(Type.Number()),
+      reverse_foil: Type.Optional(Type.Number()),
+      timestamp: Type.Number()
+    })),
     average_cost: Type.Optional(Type.Number()),
     pos_id: Type.Optional(Type.String()),
     type: Type.Optional(Type.String()),
@@ -69,7 +74,24 @@ export const productsSchema = Type.Object(
     property: Type.Optional(Type.String()),
     character_version: Type.Optional(Type.String()),
     ink_type: Type.Optional(Type.String()),
-    lore_value: Type.Optional(Type.String())
+    lore_value: Type.Optional(Type.String()),
+
+    /* Store Specific Settings */
+    store_status: Type.Optional(
+      Type.Array(
+        Type.Object({
+          store_id: ObjectIdSchema(),
+          selling: Type.Object({
+            enabled: Type.Boolean({ default: false }),
+            quantity: Type.Optional(Type.Number({ default: 0 }))
+          }),
+          buying: Type.Object({
+            enabled: Type.Boolean({ default: false }),
+            quantity: Type.Optional(Type.Number({ default: 0 }))
+          })
+        })
+      )
+    )
   },
   {
     $id: 'Products',
@@ -136,16 +158,24 @@ export const productsDataValidator = getValidator(productsDataSchema, dataValida
 export const productsDataResolver = resolve<Products, HookContext<ProductsService>>({})
 
 // Schema for updating existing entries
-export const productsPatchSchema = Type.Intersect([
-  Type.Partial(Type.Object({ 'selling.enabled': Type.Boolean() })),
-  Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
-  Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
-  Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
-  Type.Partial(Type.Object({ 'last_updated': Type.Number() })), // Add this line
- 
-], {
-  $id: 'ProductsPatch'
-})
+export const productsPatchSchema = Type.Intersect(
+  [
+    Type.Partial(Type.Object({ 'selling.enabled': Type.Boolean() })),
+    Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
+    Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
+    Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
+    Type.Partial(Type.Object({ last_updated: Type.Number() })),
+    Type.Partial(Type.Object({market_price: Type.Object({
+      foil: Type.Optional(Type.Number()),
+      normal: Type.Optional(Type.Number()),
+      reverse_foil: Type.Optional(Type.Number()),
+      timestamp: Type.Number()
+    })}))
+  ],
+  {
+    $id: 'ProductsPatch'
+  }
+)
 export type ProductsPatch = Static<typeof productsPatchSchema>
 export const productsPatchValidator = getValidator(productsPatchSchema, dataValidator)
 export const productsPatchResolver = resolve<Products, HookContext<ProductsService>>({})
