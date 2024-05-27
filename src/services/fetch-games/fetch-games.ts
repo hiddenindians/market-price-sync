@@ -7,6 +7,7 @@ import { fetchGamesPath, fetchGamesMethods } from './fetch-games.shared'
 export * from './fetch-games.class'
 
 import axios from 'axios';  // Corrected import statement
+import { combinedHook } from '../../hooks/update-data'
 
 // A configure function that registers the service and its hooks via `app.configure`
 export const fetchGames = (app: Application) => {
@@ -27,31 +28,7 @@ export const fetchGames = (app: Application) => {
       find: [],
       get: [],
       create: [
-        async () => {
-          await axios.get(`https://tcgcsv.com/categories`).then(async (data: any) => {
-            let d = data.data.results
-            for (var i = 0; i < d.length; i++) {
-              await app
-                .service('games')
-                .find({
-                  query: {
-                    'external_id.tcgcsv_id': d[i].categoryId
-                  }
-                })
-                .then((data) => {
-                  if (data.total == 0) {
-                    app.service('games').create({
-                      name: `${d[i].displayName}`,
-                      external_id: {
-                        tcgcsv_id: d[i].categoryId
-                      },
-                      logo: `/assets/images/logos/${d[i].name}.png`
-                    })
-                  }
-                })
-            }
-          })
-        }
+       combinedHook
       ],
       patch: [],
       remove: []

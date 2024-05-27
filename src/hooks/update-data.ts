@@ -1,9 +1,104 @@
-// For more information about this file see https://dove.feathersjs.com/guides/cli/hook.html
-import { ObjectId } from 'mongodb'
-import { Products } from '../client'
-import type { HookContext } from '../declarations'
-import { start } from 'repl'
-import axios from 'axios' // Corrected import statement
+// combined-hook.ts
+import { HookContext } from '../declarations'
+import axios from 'axios'
+import { Products } from '../services/products/products.schema'
+
+export const combinedHook = async (context: HookContext) => {
+  console.log(`Running combined hook on ${context.path}.${context.method}`)
+
+  // Fetch games
+  await fetchGames(context)
+
+  // Fetch sets
+  await fetchSets(context)
+
+  // Process products and prices
+  await processProductsAndPrices(context)
+}
+
+const fetchGames = async (context: HookContext) => {
+  console.log('fetching games')
+  await axios.get(`https://tcgcsv.com/categories`).then(async (data: any) => {
+    let d = data.data.results
+    for (var i = 0; i < d.length; i++) {
+      await context.app
+        .service('games')
+        .find({
+          query: {
+            'external_id.tcgcsv_id': d[i].categoryId
+          }
+        })
+        .then((data) => {
+          if (data.total == 0) {
+            context.app.service('games').create({
+              name: `${d[i].displayName}`,
+              external_id: {
+                tcgcsv_id: d[i].categoryId
+              },
+              logo: `/assets/images/logos/${d[i].name}.png`
+            })
+          }
+        })
+    }
+  })
+}
+
+const fetchSets = async (context: HookContext) => {
+  console.log('fetching sets')
+
+  let startTime = Date.now()
+  try {
+    const data = await context.app.service('games').find({ query: { $limit: 100000 } })
+    if (data.total != 0) {
+      const results = data.data
+
+      // Fetch groups for all games in parallel
+      const groupPromises = results.map(async (result) => {
+        const externalId = result.external_id.tcgcsv_id
+        try {
+          const response = await axios.get(`https://tcgcsv.com/${externalId}/groups`)
+          return { result, groups: response.data.results }
+        } catch (groupError) {
+          console.error(`Error fetching groups for externalId ${externalId}:` /*groupError*/)
+          return { result, groups: [] }
+        }
+      })
+
+      const groupsData = await Promise.all(groupPromises)
+
+      // Process sets for all games in parallel
+      const setPromises = groupsData.flatMap(({ result, groups }) => {
+        return groups.map(async (group: any) => {
+          try {
+            const setData = await context.app.service('sets').find({
+              query: {
+                game_id: result._id,
+                name: group.name
+              }
+            })
+
+            if (setData.total == 0) {
+              await context.app.service('sets').create({
+                game_id: result._id,
+                name: group.name,
+                external_id: {
+                  tcgcsv_id: group.groupId
+                }
+              })
+            }
+          } catch (setError) {
+            console.error(`Error processing set for game_id ${result._id} and name ${group.name}:`, setError)
+          }
+        })
+      })
+
+      await Promise.all(setPromises)
+    }
+  } catch (gameError) {
+    console.error('Error fetching games:', gameError)
+  }
+  console.log(`Done. It took ${(Date.now() - startTime) / 1000} seconds`)
+}
 
 export const processProductsAndPrices = async (context: HookContext) => {
   console.log(`Running hook process-products-and-prices on ${context.path}.${context.method}`)
@@ -217,7 +312,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
             newProduct.lore_value = value
             break
           default:
-            console.log(`${name}: ${value}`)
+          //console.log(`${name}: ${value}`)
         }
       })
     } else {
@@ -252,41 +347,57 @@ export const processProductsAndPrices = async (context: HookContext) => {
       }
 
       const enabledSets = enabledSetsData.data
+      const batchSize = 1000 // Define the batch size
+      for (let i = 0; i < enabledSets.length; i += batchSize) {
+        console.log('processing batch ' + (i + 1000) / 1000 + ' of ' + enabledSets.length / 1000)
+        const batch = enabledSets.slice(i, i + batchSize)
 
-      const productPromises = enabledSets.map(async (set) => {
-        const gameId = await getExternalIdForGame(set.game_id.toString())
-        const [productResponse, priceResponse] = await Promise.all([
-          axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
-          axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
-        ])
+        const productPromises = batch.map(async (set) => {
+          const gameId = await getExternalIdForGame(set.game_id.toString())
+          try {
+            const [productResponse, priceResponse] = await Promise.all([
+              axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
+              axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
+            ])
 
-        const products = productResponse.data.results.map((v: any) => ({
-          ...v,
-          game_id: set.game_id,
-          set_id: set._id
-        }))
+            const products = productResponse.data.results.map((v: any) => ({
+              ...v,
+              game_id: set.game_id,
+              set_id: set._id
+            }))
 
-        const prices = priceResponse.data.results
-        return { products, prices }
-      })
+            const prices = priceResponse.data.results
+            return { products, prices }
+          } catch (axiosError) {
+            console.error(`Error fetching data for set ${set._id}:`, axiosError)
+            return { products: [], prices: [] }
+          }
+        })
 
-      const results = await Promise.all(productPromises)
+        const results = await Promise.all(productPromises)
 
-      const products = results.flatMap((result) => result.products)
-      const prices = results.flatMap((result) => result.prices)
+        const products = results.flatMap((result) => result.products)
+        const prices = results.flatMap((result) => result.prices)
 
-      if (products.length === 0 || prices.length === 0) return
+        if (products.length === 0 || prices.length === 0) continue
 
-      const productMap = new Map(products.map((product) => [product.productId, product]))
+        const productMap = new Map(products.map((product) => [product.productId, product]))
 
-      const updatedProducts = await Promise.all(
-        prices.map(async (price) => {
+        const newProducts = []
+        const newPrices = []
+
+        for (const price of prices) {
           const foundProduct = productMap.get(price.productId)
-          if (!foundProduct) return null
+          if (!foundProduct) continue
 
           const newProduct = extractProductData(foundProduct)
 
-          if (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) {
+          if (
+            (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
+            (newProduct.type === 'Single Cards' && (!newProduct.name.includes('Art Card') || !newProduct.name.includes('Art Series'))) ||
+            newProduct.type === 'Single Cards - Leak' ||
+            newProduct.name.includes('Token')
+          ) {
             if (
               foundProduct.name.includes(newProduct.collector_number) ||
               newProduct.collector_number == undefined
@@ -294,20 +405,10 @@ export const processProductsAndPrices = async (context: HookContext) => {
               newProduct.name += ` (${price.subTypeName}, ${newProduct.rarity})`
             } else if (newProduct.collector_number != undefined) {
               newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}, ${newProduct.rarity})`
+            } else {
+              // console.log(newProduct)
             }
           }
-
-          // if(!newProduct.collector_number){
-          //   newProduct.collector_number = "0"
-          // }
-
-          // const existingProduct = await client.service('products').find({
-          //   query: {
-          //     external_id: {
-          //       tcgcsv_id: newProduct.external_id.tcgcsv_id
-          //     }
-          //   }
-          // })
 
           const existingProductData = await context.app.service('products').find({
             query: {
@@ -315,58 +416,100 @@ export const processProductsAndPrices = async (context: HookContext) => {
               'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id)
             }
           })
-          const existingProduct = existingProductData.data[0] as Products
 
           const settingsData = await context.app.service('settings').find()
-          const settings = settingsData.data[0]
+          const settings = settingsData.data[0] || { tcgcsv_last_updated: 0 }
+
           const newPrice: Price = {
             market_price: {
               [price.subTypeName]: Number(price.marketPrice || price.midPrice)
             },
             timestamp: Date.now(),
-            product_id: existingProduct._id
+            product_id: existingProductData.total > 0 ? existingProductData.data[0]._id : {}
           }
-          console.log(newPrice)
-          if (existingProductData.total == 1) {
-            console.log('exists')
+
+          if (existingProductData.total > 0) {
+            const existingProduct = existingProductData.data[0] as Products
+
             if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
-              console.log('updating price')
+              //  console.log('updating price')
               await context.app.service('prices').create(newPrice)
               var _id = existingProduct._id as string
-              await context.app
-                .service('products')
-                .patch(_id, {
-                  last_updated: newProduct.last_updated,
-                  market_price: { ...newPrice.market_price, timestamp: Date.now() }
-                })
+              await context.app.service('products').patch(_id, {
+                last_updated: newProduct.last_updated,
+                market_price: { ...newPrice.market_price, timestamp: Date.now() }
+              })
             }
           } else if (existingProductData.total > 1) {
             console.log('found too many')
           } else {
-            console.log('no match')
-            // console.log(newProduct)
-            newProduct.market_price = { ...newPrice.market_price, timestamp: Date.now()}
-            const insertedProduct = await context.app.service('products').create(newProduct)
+            //   console.log('no match')
+            newProduct.market_price = { ...newPrice.market_price, timestamp: Date.now() }
+            
+            await context.app.service('products').create(newProduct)
             await context.app.service('prices').create(newPrice)
           }
+        }
 
-          return { ...newProduct }
-        })
-      )
+        // Create products in bulk
+        // console.log(newProducts.length)
 
-      //console.log(updatedProducts.filter((product) => product !== null))
+        // if (newProducts.length > 0) {
+        //   try {
+        //     console.log('trying to insert products')
+        //     context.app.service('products').create(newProducts, {
+        //       adapter: {
+        //         multi: true
+        //       }
+        //     })
+        //     console.log('inserted products')
+        //   } catch (error: any) {
+        //     if (error.code === 11000) {
+        //       console.error('Duplicate key error:', error.message) // Handle duplicate key error
+        //     } else {
+        //       console.error('Error inserting products:', error)
+        //     }
+        //   }
+        // }
+
+        // console.log(newPrices.length)
+        // if (newPrices.length > 0) {
+        //   try {
+        //     console.log('trying to insert prices')
+
+        //     context.app
+        //       .service('prices')
+        //       .create(newPrices, {
+        //         adapter: {
+        //           multi: true
+        //         }
+        //       })
+        //       console.log('inserted prices')
+
+        //   } catch (error: any) {
+        //     if (error.code === 11000) {
+        //       console.error('Duplicate key error:', error.message) // Handle duplicate key error
+        //     } else {
+        //       console.error(error.message)
+        //     }
+        //   }
+        // }
+
+        console.log('done processing batch ' + (i + 1000) / 1000 + ' of ' + enabledSets.length / 1000)
+      }
     } catch (error) {
       console.error('Error fetching products:', error)
     }
 
     console.log(`Done. Took ${(Date.now() - startTime) / 1000} seconds`)
   }
-
   const determineProductType = (foundProduct: any) => {
     if (foundProduct.extendedData.length <= 2) {
       if (foundProduct.extendedData.name && foundProduct.extendedData.name.includes('Token')) {
         return 'Single Cards'
       } else if (foundProduct.name.includes('Energy')) {
+        return 'Single Cards'
+      } else if (foundProduct.name.includes('Token')) {
         return 'Single Cards'
       } else if (foundProduct.name.includes('Code Card')) {
         return 'Single Cards'
@@ -378,12 +521,29 @@ export const processProductsAndPrices = async (context: HookContext) => {
         return 'Elite Trainer Boxes'
       } else if (foundProduct.name.includes('Double Pack')) {
         return 'Boosters'
-      } else if (foundProduct.name.includes('Build & Battle Box')) {
+      }else if (foundProduct.name.includes('VIP Edition Pack')) {
+        return 'Boosters'
+      } else if (foundProduct.name.includes('Box Topper')) {
+        return 'Boosters'
+      }else if (foundProduct.name.includes('Build & Battle Box')) {
         return 'Build & Battle Boxes'
       } else if (foundProduct.name.includes('Blister')) {
         return 'Boosters'
+      } else if (foundProduct.name.includes('- Bundle') || foundProduct.name.includes('- Gift Bundle')) {
+        return 'Bundles'
+      } else if (foundProduct.name.includes('Starter Kit')) {
+        return 'Starter Kits'
+      } else if (foundProduct.name.includes('Prerelease Pack')) {
+        return 'Prerelease Packs'
+      } else if (foundProduct.name.includes('Land')&& foundProduct.rarity === 'L') {
+        return 'Single Cards'
+      }else if (foundProduct.name.includes('Art Card') || foundProduct.url.includes('art-series')) {
+        return 'Single Cards'
+      } else if (foundProduct.rarity) {
+        return 'Single Cards - Leak'
       } else {
-        return 'sealed'
+        //  console.log(foundProduct)
+        return 'Sealed'
       }
     } else {
       return 'Single Cards'
