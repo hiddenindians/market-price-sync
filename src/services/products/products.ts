@@ -45,7 +45,7 @@ export const products = (app: Application) => {
         schemaHooks.validateQuery(productsQueryValidator),
         schemaHooks.resolveQuery(productsQueryResolver)
       ],
-      find: [lookupPrices],
+      find: [],
       get: [],
       create: [
         schemaHooks.validateData(productsDataValidator),

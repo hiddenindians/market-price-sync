@@ -93,8 +93,6 @@ addEventListener('.update-data', 'click', async (e) => {
   const updatingElement = document.getElementById('updating')
   updatingElement.toggleAttribute('hidden')
   await fetchGames()
-  await fetchSets()
-  await fetchProducts()
   updatingElement.toggleAttribute('hidden')
   console.log(`Done Updating. It took ${(Date.now() - startTime) / 1000} seconds`)
 })

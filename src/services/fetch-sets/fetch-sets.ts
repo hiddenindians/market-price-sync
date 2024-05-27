@@ -68,7 +68,7 @@ export const fetchSets = (app: Application) => {
                     });
                   }
                 } catch (setError) {
-                  console.error(`Error processing set for game_id ${result._id} and name ${group.name}:`, setError);
+                  console.error(`Error processing set for game_id ${result._id} and name ${group.name}:`);
                 }
               });
             });
