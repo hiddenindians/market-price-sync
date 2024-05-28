@@ -2,7 +2,10 @@
 import { HookContext } from '../declarations'
 import axios from 'axios'
 import { Products } from '../services/products/products.schema'
+import pLimit from 'p-limit'; // Add this import
 
+
+const attributes: any[] = []
 export const combinedHook = async (context: HookContext) => {
   console.log(`Running combined hook on ${context.path}.${context.method}`)
 
@@ -30,6 +33,7 @@ const fetchGames = async (context: HookContext) => {
         })
         .then((data) => {
           if (data.total == 0) {
+            if (![21,69,70,82].includes(Number(d[i].categoryId))){
             context.app.service('games').create({
               name: `${d[i].displayName}`,
               external_id: {
@@ -37,7 +41,7 @@ const fetchGames = async (context: HookContext) => {
               },
               logo: `/assets/images/logos/${d[i].name}.png`
             })
-          }
+          }}
         })
     }
   })
@@ -312,7 +316,9 @@ export const processProductsAndPrices = async (context: HookContext) => {
             newProduct.lore_value = value
             break
           default:
-          //console.log(`${name}: ${value}`)
+           // if (!attributes.find(attr => attr.game === foundProduct.game_id && attr.name === value)) {
+              attributes.push({ game: foundProduct.game_id, name: value });
+           // }
         }
       })
     } else {
@@ -339,6 +345,8 @@ export const processProductsAndPrices = async (context: HookContext) => {
   const fetchProducts = async () => {
     const startTime = Date.now()
     console.log('starting')
+
+
     try {
       const enabledSetsData = await context.app.service('sets').find({ query: { $limit: 100000 } })
       if (enabledSetsData.total === 0) {
@@ -347,13 +355,16 @@ export const processProductsAndPrices = async (context: HookContext) => {
       }
 
       const enabledSets = enabledSetsData.data
-      const batchSize = 1000 // Define the batch size
+      const batchSize = 200 // Define the batch size
+      const limit = pLimit(20)
       for (let i = 0; i < enabledSets.length; i += batchSize) {
-        console.log('processing batch ' + (i + 1000) / 1000 + ' of ' + enabledSets.length / 1000)
+        console.log('processing batch ' + (i + batchSize) / batchSize + ' of ' + Math.ceil((enabledSets.length / batchSize)))
         const batch = enabledSets.slice(i, i + batchSize)
 
-        const productPromises = batch.map(async (set) => {
+        const productPromises = batch.map((set) => limit(async () => {
           const gameId = await getExternalIdForGame(set.game_id.toString())
+
+    
           try {
             const [productResponse, priceResponse] = await Promise.all([
               axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
@@ -372,7 +383,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
             console.error(`Error fetching data for set ${set._id}:`, axiosError)
             return { products: [], prices: [] }
           }
-        })
+        }));
 
         const results = await Promise.all(productPromises)
 
@@ -495,14 +506,26 @@ export const processProductsAndPrices = async (context: HookContext) => {
         //   }
         // }
 
-        console.log('done processing batch ' + (i + 1000) / 1000 + ' of ' + enabledSets.length / 1000)
+        console.log('done processing batch ' + (i + batchSize) / batchSize + ' of ' + enabledSets.length / batchSize)
       }
     } catch (error) {
       console.error('Error fetching products:', error)
     }
 
     console.log(`Done. Took ${(Date.now() - startTime) / 1000} seconds`)
+    const uniqueArray = attributes.filter((obj, index, self) => {
+      // Create a unique key based on the properties you want to check for uniqueness
+      const key = `${obj.game}-${obj.name}`;
+      
+      // Check if this key is already seen, if not, add it to the set
+      return index === self.findIndex((o) => `${o.game}-${o.name}` === key);
+    });
+    uniqueArray.forEach(att => {
+      console.log(att)
+    })
+    console.log(uniqueArray)
   }
+
   const determineProductType = (foundProduct: any) => {
     if (foundProduct.extendedData.length <= 2) {
       if (foundProduct.extendedData.name && foundProduct.extendedData.name.includes('Token')) {
