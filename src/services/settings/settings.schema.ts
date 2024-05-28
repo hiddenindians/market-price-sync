@@ -17,6 +17,7 @@ export const settingsSchema = Type.Object(
     buylist_percentage: Type.Number(),
     timeout: Type.Number(),
     tcgcsv_last_updated: Type.Number(),
+    store_id: ObjectIdSchema()
   },
   { $id: 'Settings', additionalProperties: false }
 )

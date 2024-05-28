@@ -399,269 +399,8 @@ const paginate = (scope, id, total, limit, skip) => {
 /////////////
 /* Fetches */
 /////////////
-const fetchGames = async () => {
-  client.service('fetch-games').create({})
-}
 
-const fetchSets = async () => {
-  client.service('fetch-sets').create({})
-}
 
-const fetchProducts = async () => {
-  client.service('fetch-products-and-prices').create({})
-}
-
-const extractProductData = (foundProduct) => {
-  const newProduct = {}
-  if (foundProduct.extendedData) {
-    foundProduct.extendedData.forEach(({ name, value }) => {
-      switch (name) {
-        case 'UPC':
-          newProduct.upc = value
-          break
-        case 'CardText':
-        case 'OracleText':
-        case 'Description':
-          newProduct.text = value
-          break
-        case 'Number':
-          newProduct.collector_number = value
-          break
-        case 'Rarity':
-          newProduct.rarity = value
-          break
-        case 'SubType':
-        case 'SubTypes':
-          newProduct.sub_type = value
-          break
-        case 'P':
-        case 'Power':
-          newProduct.power = value
-          break
-        case 'T':
-        case 'Willpower':
-          newProduct.toughness = value
-          break
-        case 'FlavorText':
-          newProduct.flavor_text = value
-          break
-        case 'Card Type':
-        case 'CardType':
-          newProduct.card_type = value
-          break
-        case 'HP':
-          newProduct.hp = value
-          break
-        case 'Stage':
-          newProduct.stage = value
-          break
-        case 'Attack 1':
-          newProduct.attack_1 = value
-          break
-        case 'Attack 2':
-          newProduct.attack_2 = value
-          break
-        case 'Attack 3':
-          newProduct.attack_3 = value
-          break
-        case 'Attack 4':
-          newProduct.attack_4 = value
-          break
-        case 'Weakness':
-          newProduct.weakness = value
-          break
-        case 'Resistance':
-          newProduct.resistance = value
-          break
-        case 'Retreat Cost':
-          newProduct.retreat_cost = value
-          break
-        case 'Color':
-          newProduct.colour = value
-          break
-        case 'Cost':
-        case 'Cost Ink':
-          newProduct.cost = value
-          break
-        case 'Life':
-          newProduct.life = value
-          break
-        case 'Counterplus':
-          newProduct.counter = value
-          break
-        case 'Attribute':
-          newProduct.attribute = value
-          break
-        case 'Combo Power':
-          newProduct.combo_power = value
-          break
-        case 'Character Traits':
-          newProduct.sub_type = value
-          break
-        case 'Property':
-          newProduct.property = value
-          break
-        case 'InkType':
-          newProduct.ink_type = value
-          break
-        case 'Strength':
-          newProduct.power = value
-          break
-        case 'Lore Value':
-          newProduct.lore_value = value
-          break
-      }
-    })
-  }
-
-  newProduct.set_id = foundProduct.set_id
-  newProduct.game_id = foundProduct.game_id
-  newProduct.external_id = {
-    tcgcsv_id: Number(foundProduct.productId),
-    tcgcsv_category_id: Number(foundProduct.categoryId),
-    tcgcsv_group_id: Number(foundProduct.groupId)
-  }
-  newProduct.name = `${foundProduct.name}`
-  newProduct.image_url = `${foundProduct.imageUrl.slice(0, -8)}400w.jpg`
-  newProduct.buying = { enabled: false, quantity: 0 }
-  newProduct.selling = { enabled: false, quantity: 0 }
-  newProduct.type = determineProductType(foundProduct)
-
-  newProduct.last_updated = Date.now()
-
-  return newProduct
-}
-// const fetchProducts = async () => {
-//   try {
-//     const enabledSetsData = await getEnabledSets()
-//     if (enabledSetsData.total === 0) return
-
-//     const enabledSets = enabledSetsData.data
-//     console.log(enabledSets)
-
-//     const productPromises = enabledSets.map(async (set) => {
-//       const gameId = await getExternalIdForGame(set.game_id)
-//       const [productResponse, priceResponse] = await Promise.all([
-//         axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
-//         axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
-//       ])
-
-//       const products = productResponse.data.results.map((v) => ({
-//         ...v,
-//         game_id: set.game_id,
-//         set_id: set._id
-//       }))
-
-//       const prices = priceResponse.data.results
-//       return { products, prices }
-//     })
-
-//     const results = await Promise.all(productPromises)
-
-//     const products = results.flatMap((result) => result.products)
-//     const prices = results.flatMap((result) => result.prices)
-
-//     if (products.length === 0 || prices.length === 0) return
-
-//     const productMap = new Map(products.map((product) => [product.productId, product]))
-
-//     const updatedProducts = await Promise.all(
-//       prices.map(async (price) => {
-//         const foundProduct = productMap.get(price.productId)
-//         if (!foundProduct) return null
-
-//         const newProduct = extractProductData(foundProduct)
-//         const newPrice = {
-//           market_price: {
-//             [price.subTypeName]: Number(price.marketPrice || price.midPrice)
-//           },
-//           timestamp: Date.now()
-//         }
-
-//         if (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) {
-//           if (foundProduct.name.includes(newProduct.collector_number) || newProduct.collector_number == undefined) {
-//             newProduct.name += ` (${price.subTypeName}, ${newProduct.rarity})`
-//           } else if (newProduct.collector_number != undefined) {
-//             newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}, ${newProduct.rarity})`
-//           }
-//         }
-
-//         // if(!newProduct.collector_number){
-//         //   newProduct.collector_number = "0"
-//         // }
-
-//         // const existingProduct = await client.service('products').find({
-//         //   query: {
-//         //     external_id: {
-//         //       tcgcsv_id: newProduct.external_id.tcgcsv_id
-//         //     }
-//         //   }
-//         // })
-
-//         const existingProduct = await client.service('products').find({
-//           query: {
-//             name: newProduct.name,
-//             'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id)
-//           }
-//         })
-
-//         if (existingProduct.total == 1) {
-//           console.log('exists')
-//           if (existingProduct.data[0].last_updated < settings.tcgcsv_last_updated) {
-//             console.log('updating price')
-//             newPrice.product_id = existingProduct.data[0]._id
-//             await client.service('prices').create(newPrice)
-//             await client
-//               .service('products')
-//               .patch(existingProduct.data[0]._id, { last_updated: newProduct.last_updated })
-//           }
-//         } else if (existingProduct.total > 1) {
-//           console.log('found too many')
-//         } else {
-//           console.log('no match')
-//           console.log(newProduct)
-//           const insertedProduct = await client.service('products').create(newProduct)
-//           newPrice.product_id = insertedProduct._id
-//           await client.service('prices').create(newPrice)
-//         }
-
-//         return { ...newProduct }
-//       })
-//     )
-
-//     console.log(updatedProducts.filter((product) => product !== null))
-//   } catch (error) {
-//     console.error('Error fetching products:', error)
-//   }
-// }
-
-const determineProductType = (foundProduct) => {
-  if (foundProduct.extendedData.length <= 2) {
-    if (foundProduct.extendedData.name && foundProduct.extendedData.name.includes('Token')) {
-      return 'Single Cards'
-    } else if (foundProduct.name.includes('Energy')) {
-      return 'Single Cards'
-    } else if (foundProduct.name.includes('Code Card')) {
-      return 'Single Cards'
-    } else if (foundProduct.name.includes('Booster')) {
-      return 'Boosters'
-    } else if (foundProduct.name.includes('Deck')) {
-      return 'Decks'
-    } else if (foundProduct.name.includes('Elite Trainer Box')) {
-      return 'Elite Trainer Boxes'
-    } else if (foundProduct.name.includes('Double Pack')) {
-      return 'Boosters'
-    } else if (foundProduct.name.includes('Build & Battle Box')) {
-      return 'Build & Battle Boxes'
-    } else if (foundProduct.name.includes('Blister')) {
-      return 'Boosters'
-    } else {
-      return 'sealed'
-    }
-  } else {
-    return 'Single Cards'
-  }
-}
 const fetchTCGCSVLastUpdated = async () => {
   let latest
   await axios.get('https://tcgcsv.com/last-updated.txt').then((data) => {
@@ -925,14 +664,14 @@ const setBuyListPercentage = (e) => {
 const setSettings = async () => {
   await client
     .service('settings')
-    .find()
+    .find({query: {store_id: settings.store_id}})
     .then(async (data) => {
       if (data.total == 0) {
         await client.service('settings').create(settings)
       } else {
         await client
           .service('settings')
-          .patch(data.data[0]._id, settings)
+          .patch(data.data[0]._id, {...settings, store_id: user.store_id})
           .then((data) => console.log(data))
       }
     })
@@ -1227,6 +966,6 @@ const applyTheme = () => {
 login()
 applyTheme()
 showHeader()
-fetchGames()
+//fetchGames()
 await getSettings()
 await fetchTCGCSVLastUpdated()
