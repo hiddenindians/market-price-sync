@@ -1,0 +1,50 @@
+<div class="auth-page">
+    <div class="container page">
+      <mat-card class="auth-card">
+        <mat-card-header>
+          <h1 class="text-center">Welcome to MPS</h1>
+        </mat-card-header>
+        <mat-card-content>
+          <p>
+            <a mat-button [routerLink]="['/login']" *ngIf="authType === 'register'">Have an account?</a>
+            <a mat-button [routerLink]="['/register']" *ngIf="authType === 'login'">Need an account?</a>
+          </p>
+          <form [formGroup]="authForm" (ngSubmit)="submitForm()">
+            <fieldset [disabled]="isSubmitting">
+              <div *ngIf="authType === 'register'">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Username</mat-label>
+                  <input matInput formControlName="username" placeholder="Username" type="text">
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Store</mat-label>
+                    <input matInput formControlName="store" placeholder="Store" type="text">
+                  </mat-form-field>
+                  
+                
+              </div>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Email</mat-label>
+                <input matInput formControlName="email" placeholder="Email" type="email">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Password</mat-label>
+                <input matInput formControlName="password" placeholder="Password" type="password">
+              </mat-form-field>
+              <div class="button-container">
+                <button mat-raised-button color="primary" class="full-width" type="submit">
+                  {{ title }}
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+
+  
+
+  
+
+  

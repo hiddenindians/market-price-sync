@@ -1,6 +1,4 @@
 import { header } from "./header.mjs"
-
-
 // Login screen
 export const loginTemplate = (error) =>
   `
@@ -33,3 +31,4 @@ export const loginTemplate = (error) =>
   </form>
 </div>
 </div>`
+
