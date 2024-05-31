@@ -1,12 +1,14 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, DestroyRef, OnInit, ViewEncapsulation, inject } from '@angular/core';
 import { FormBuilder, FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Route, ActivatedRoute, RouterLink } from '@angular/router';
+import { Route, ActivatedRoute, RouterLink, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCardModule } from '@angular/material/card';
-import { FeathersService } from '../../../services/data/feathers.service';
+import { UserService } from '../../../services/user/user.service';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { Errors } from '../../../shared/models/errors.model';
 
 @Component({
   standalone: true,
@@ -16,15 +18,19 @@ import { FeathersService } from '../../../services/data/feathers.service';
   imports: [ReactiveFormsModule, RouterLink, CommonModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatCardModule]
 })
 export class LoginComponent implements OnInit {
+  errors: Errors = { errors: {} };
   authType: String = '';
   title: String = '';
   isSubmitting: boolean = false;
   authForm: FormGroup;
+  destroyRef = inject(DestroyRef);
+
 
   constructor(
     private route: ActivatedRoute,
     private fb: FormBuilder,
-    private _feathers: FeathersService
+    private userService: UserService,
+    private router: Router
   ) {
     // use FormBuilder to create a form group
     this.authForm = this.fb.group({
@@ -52,10 +58,19 @@ export class LoginComponent implements OnInit {
 
     let credentials = this.authForm.value;
     // check out what you get!
-   this._feathers.authenticate(credentials).then(data => {
-    console.log(data)
-   })
-    console.log(credentials);
+  //  this._feathers.authenticate(credentials).then(data => {
+  //   console.log(data)
+  //  })
+
+  let observable = this.userService.login(credentials)
+
+  observable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    next: () => void this.router.navigate(["/"]),
+    error: (err) => {
+      this.errors = err;
+      this.isSubmitting = false;
+    },
+  });    console.log(credentials);
   }
 }
 
