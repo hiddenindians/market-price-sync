@@ -1,5 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { FeathersService } from '../../services/api/feathers.service';
+import { DataService } from '../../services/data/data.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard',
@@ -10,12 +12,10 @@ import { FeathersService } from '../../services/api/feathers.service';
 })
 export class DashboardComponent implements OnInit {
 
-  constructor(private _feathers: FeathersService){}
+  constructor(private data: DataService){}
   ngOnInit(){
-    
-    // let games = this._feathers.getService('games').find().then((gaes: any) => {
-    //   console.log(gaes)
-    // })
-
+   this.data.getGames().subscribe((data:any) => {
+    console.log(data)
+   })
   }
 }

@@ -31,10 +31,11 @@ export class AuthService {
 
   logout():void {
     this.purgeAuth();
-    void this.router.navigate(["/"])
+    void this.router.navigate(["/login"])
   }
 
-  populate():void{
+  reauthenticate():void{
+    console.log('populating')
       this._feathers.reauthentictate({
         strategy: 'local',
         accessToken: window.localStorage.getItem('feathers-jwt') || null
@@ -43,7 +44,6 @@ export class AuthService {
           console.log(data)
         }
       ).catch((err: any) => {
-        this.router.navigate(["login"])
         this.logout()
         console.log('erre')
       })
