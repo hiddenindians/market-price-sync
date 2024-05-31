@@ -21,7 +21,7 @@ export class FeathersService {
     }))
   }
 
-  public getService(serviceName: string) {
+  public service(serviceName: string) {
     return this._feathers.service(serviceName);
   }
 

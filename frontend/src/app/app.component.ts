@@ -17,6 +17,6 @@ export class AppComponent {
   }
 
   ngOnInit() {
-    this.auth.populate();
+    this.auth.reauthenticate();
   }
 }
