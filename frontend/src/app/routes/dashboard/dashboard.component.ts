@@ -1,58 +1,21 @@
-import { Component, inject } from '@angular/core';
-import { Breakpoints, BreakpointObserver } from '@angular/cdk/layout';
-import { map } from 'rxjs/operators';
-import { AsyncPipe } from '@angular/common';
-import { MatGridListModule } from '@angular/material/grid-list';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { FeathersService } from '../../services/data/feathers.service';
+import { Component, OnInit } from '@angular/core';
+import { FeathersService } from '../../services/api/feathers.service';
 
 @Component({
   selector: 'app-dashboard',
-  templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.less',
   standalone: true,
-  imports: [
-    AsyncPipe,
-    MatGridListModule,
-    MatMenuModule,
-    MatIconModule,
-    MatButtonModule,
-    MatCardModule
-  ]
+  imports: [],
+  templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.less'
 })
-export class DashboardComponent {
-  private breakpointObserver = inject(BreakpointObserver);
+export class DashboardComponent implements OnInit {
 
-  constructor(private feathers: FeathersService){
-    let games = this.feathers.service('games').find()
-
-    console.log(games);
+  constructor(private _feathers: FeathersService){}
+  ngOnInit(){
+    
+    // let games = this._feathers.getService('games').find().then((gaes: any) => {
+    //   console.log(gaes)
+    // })
 
   }
-
-
-
-  /** Based on the screen size, switch from standard to one column per row */
-  cards = this.breakpointObserver.observe(Breakpoints.Handset).pipe(
-    map(({ matches }) => {
-      if (matches) {
-        return [
-          { title: 'Card 1', cols: 1, rows: 1 },
-          { title: 'Card 2', cols: 1, rows: 1 },
-          { title: 'Card 3', cols: 1, rows: 1 },
-          { title: 'Card 4', cols: 1, rows: 1 }
-        ];
-      }
-
-      return [
-        { title: 'Card 1', cols: 2, rows: 1 },
-        { title: 'Card 2', cols: 1, rows: 1 },
-        { title: 'Card 3', cols: 1, rows: 2 },
-        { title: 'Card 4', cols: 1, rows: 1 }
-      ];
-    })
-  );
 }
