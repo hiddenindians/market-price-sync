@@ -16,24 +16,33 @@ import { MatSortModule } from '@angular/material/sort'
 })
 export class DashboardComponent implements OnInit {
   games: any[] = []
-  displayedColumns: string[]  = ['logo','name', 'external_id.tcgcsv_id']
-
+  displayedColumns: string[]  = ['logo','name','external_id.tcgcsv_id']
+  totalLength: number = 0
+  pageSize: number = 10;
+  pageIndex: number = 0;
 
   constructor(private data: DataService) {}
   ngOnInit() {
-   this.fetchGames(10,0)
+    this.fetchGames(this.pageSize, this.pageIndex * this.pageSize);
   }
 
   fetchGames(limit: number, skip: number) {
     this.data.getGames(limit, skip).subscribe((data: any) => {
       this.games = data.data
+      this.totalLength = data.total
       console.log('Fetched games:', this.games); // Verify data is fetched
+      console.log('Fetched total:', this.totalLength);
     })
   }
 
+  
+
   onPageChange(event: any) {
+    this.pageSize = event.pageSize;
+    this.pageIndex = event.pageIndex;
     const limit = event.pageSize;
     const skip = event.pageIndex * event.pageSize;
     this.fetchGames(limit, skip);
   }
+
 }

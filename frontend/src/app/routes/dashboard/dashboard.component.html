@@ -1,1 +1,1 @@
-<app-data-table [data]="games" [displayedColumns]="['name', 'price', 'category']"></app-data-table>
+<app-data-table [totalLength]="totalLength" [data]="games" [displayedColumns]="displayedColumns" (page)="onPageChange($event)" ></app-data-table>
