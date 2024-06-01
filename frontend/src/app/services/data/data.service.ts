@@ -11,8 +11,13 @@ export class DataService {
 
    }
 
-   public getGames(): any {
-    return this._feathers.service('games').watch().find()
+   public getGames(limit: number, skip: number): any {
+    return this._feathers.service('games').watch().find({
+      query: {
+        $limit: limit, 
+        $skip: skip
+      }
+    })
    }
 
    getSetsForGame(gameId: string){
