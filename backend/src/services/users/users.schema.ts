@@ -20,9 +20,10 @@ export const userSchema = Type.Object(
   {
     _id: ObjectIdSchema(),
     email: Type.String( {format: 'email'}),
+    username: Type.String(),
     password: Type.Optional(Type.String()),
-    store_id: ObjectIdSchema(),
-    role: Type.Enum(Roles)
+    store_id: Type.Optional(ObjectIdSchema()),
+    role: Type.Optional(Type.Enum(Roles))
   },
   { $id: 'User', additionalProperties: false }
 )
@@ -36,7 +37,7 @@ export const userExternalResolver = resolve<User, HookContext<UserService>>({
 })
 
 // Schema for creating new entries
-export const userDataSchema = Type.Pick(userSchema, ['email', 'password'], {
+export const userDataSchema = Type.Pick(userSchema, ['email', 'password', 'username', 'store_id', 'role'], {
   $id: 'UserData'
 })
 export type UserData = Static<typeof userDataSchema>

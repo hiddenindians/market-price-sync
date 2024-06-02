@@ -16,6 +16,7 @@ interface AuthForm {
   email: FormControl<string>;
   password: FormControl<string>;
   username?: FormControl<string>;
+  storeName?: FormControl<string>;
 }
 
 @Component({
@@ -60,6 +61,13 @@ export default class AuthComponent implements OnInit {
           nonNullable: true,
         }),
       );
+      this.authForm.addControl(
+        "storeName",
+        new FormControl("", {
+          validators: [Validators.required],
+          nonNullable: true,
+        }),
+      );
     }
   }
 
@@ -72,11 +80,12 @@ export default class AuthComponent implements OnInit {
         ? this.userService.logIn(
             this.authForm.value as { email: string; password: string },
           )
-        : this.userService.logIn(
+        : this.userService.signUp(
             this.authForm.value as {
               email: string;
               password: string;
               username: string;
+              storeName: string;
             },
           );
 
