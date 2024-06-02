@@ -25,6 +25,16 @@
                 }
               </fieldset>
               <fieldset class="form-group">
+                @if (authType === "register") {
+                  <input
+                    formControlName="storeName"
+                    placeholder="Store"
+                    class="form-control form-control-lg"
+                    type="text"
+                  />
+                }
+              </fieldset>
+              <fieldset class="form-group">
                 <input
                   formControlName="email"
                   placeholder="Email"

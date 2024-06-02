@@ -18,7 +18,8 @@ export const storesSchema = Type.Object(
     enabled_oems: Type.Array(Type.Any()),
     enabled_consoles: Type.Array(Type.Any()),
     allow_buying: Type.Boolean(),
-    allow_selling: Type.Boolean()
+    allow_selling: Type.Boolean(),
+    admin_id: ObjectIdSchema()
   },
   { $id: 'Stores', additionalProperties: false }
 )
@@ -29,7 +30,7 @@ export const storesResolver = resolve<Stores, HookContext<StoresService>>({})
 export const storesExternalResolver = resolve<Stores, HookContext<StoresService>>({})
 
 // Schema for creating new entries
-export const storesDataSchema = Type.Pick(storesSchema, ['name'], {
+export const storesDataSchema = Type.Pick(storesSchema, ['name', 'admin_id'], {
   $id: 'StoresData'
 })
 export type StoresData = Static<typeof storesDataSchema>
