@@ -1,1 +1,1 @@
-<app-data-table [totalLength]="totalLength" [data]="games" [displayedColumns]="displayedColumns" (page)="onPageChange($event)" ></app-data-table>
+<div class="container"><app-data-table [totalLength]="totalLength" [data]="games" [displayedColumns]="displayedColumns" (sortChanged)="onSortChange($event)" (page)="onPageChange($event)" ></app-data-table></div>

@@ -1,65 +1,73 @@
-<div class="auth-page">
-    <div class="container page">
-      <div class="row">
-        <div class="col-md-6 offset-md-3 col-xs-12">
-          <h1 class="text-xs-center">{{ title }}</h1>
-          <p class="text-xs-center">
-            @if (authType === "register") {
-              <a [routerLink]="['/login']">Have an account?</a>
-            }
-  
-            @if (authType === "login") {
-              <a [routerLink]="['/register']">Need an account?</a>
-            }
-          </p>
-          <form [formGroup]="authForm" (ngSubmit)="submitForm()">
-            <fieldset [disabled]="isSubmitting">
-              <fieldset class="form-group">
-                @if (authType === "register") {
-                  <input
-                    formControlName="username"
-                    placeholder="Username"
-                    class="form-control form-control-lg"
-                    type="text"
-                  />
-                }
-              </fieldset>
-              <fieldset class="form-group">
-                @if (authType === "register") {
-                  <input
-                    formControlName="storeName"
-                    placeholder="Store"
-                    class="form-control form-control-lg"
-                    type="text"
-                  />
-                }
-              </fieldset>
-              <fieldset class="form-group">
-                <input
-                  formControlName="email"
-                  placeholder="Email"
-                  class="form-control form-control-lg"
-                  type="text"
-                />
-              </fieldset>
-              <fieldset class="form-group">
-                <input
-                  formControlName="password"
-                  placeholder="Password"
-                  class="form-control form-control-lg"
-                  type="password"
-                />
-              </fieldset>
-              <button
-                class="btn btn-lg btn-primary pull-xs-right"
-                [disabled]="!authForm.valid"
-                type="submit"
-              >
-                {{ title }}
-              </button>
-            </fieldset>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
+<mat-card class="login-card">
+  <mat-card-header class="login-header">
+    <h1 class="login-title">{{ title }}</h1>
+  </mat-card-header>
+  <mat-card-content>
+   
+      <ng-container *ngIf="authType === 'register'; else loginForm">
+        <mat-horizontal-stepper [linear]="true" #stepper>
+          <mat-step [stepControl]="userInfoForm">
+            <form [formGroup]="userInfoForm" >
+              <ng-template matStepLabel>User Info</ng-template>
+              <mat-form-field appearance="outline">
+                <mat-label>Username</mat-label>
+                <input matInput formControlName="username" placeholder="Username" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Email</mat-label>
+                <input matInput formControlName="email" placeholder="Email" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Password</mat-label>
+                <input matInput formControlName="password" placeholder="Password" type="password" />
+              </mat-form-field>
+              <div>
+                <button mat-button matStepperNext>Next</button>
+              </div>
+            </form>
+          </mat-step>
+          <mat-step [stepControl]="storeInfoForm" >
+            <form [formGroup]="storeInfoForm" (ngSubmit)="submitForm()">
+              <ng-template matStepLabel>Store Info</ng-template>
+              <mat-form-field appearance="outline">
+                <mat-label>Store Name</mat-label>
+                <input matInput formControlName="storeName" placeholder="Store Name" />
+              </mat-form-field>
+              <div>
+                <button mat-button matStepperPrevious>Back</button>
+                <button mat-raised-button color="primary" [disabled]="!userInfoForm.valid && !storeInfoForm.valid" type="submit">
+                  Submit
+                </button>
+              </div>
+            </form>
+          </mat-step>
+        </mat-horizontal-stepper>
+      </ng-container>
+
+      <ng-template #loginForm>
+        <form [formGroup]="authForm" (ngSubmit)="submitForm()">
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" placeholder="Email" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input matInput formControlName="password" placeholder="Password" type="password" />
+        </mat-form-field>
+        <button mat-raised-button color="primary" [disabled]="!authForm.valid" type="submit">
+          {{ title }}
+        </button>
+        </form>
+      </ng-template>
+  </mat-card-content>
+  <mat-card-footer>
+    <p class="login-subtext">
+      <ng-container *ngIf="authType === 'register'">
+        <a [routerLink]="['/login']">Have an account?</a>
+      </ng-container>
+      <ng-container *ngIf="authType === 'login'">
+        <a [routerLink]="['/register']">Need an account?</a>
+      </ng-container>
+    </p>
+  </mat-card-footer>
+</mat-card>

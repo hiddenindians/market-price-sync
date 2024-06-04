@@ -1,6 +1,5 @@
-// // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema'
-import { Type, getValidator, queryProperty, querySyntax } from '@feathersjs/typebox'
+import { Type, getValidator, queryProperty } from '@feathersjs/typebox'
 import { ObjectIdSchema } from '@feathersjs/typebox'
 import type { Static } from '@feathersjs/typebox'
 
@@ -22,7 +21,6 @@ export const gamesSchema = Type.Object(
       store_id: ObjectIdSchema(),
       visible: Type.Boolean({ default: false })
     }))
-
   },
   { $id: 'Games', additionalProperties: false }
 )
@@ -49,22 +47,24 @@ export const gamesPatchValidator = getValidator(gamesPatchSchema, dataValidator)
 export const gamesPatchResolver = resolve<Games, HookContext<GamesService>>({})
 
 // Schema for allowed query properties
-export const gamesQueryProperties = Type.Pick(gamesSchema, ['_id', 'external_id', 'enabled'])
-export const gamesQuerySchema = Type.Intersect(
-  [
-    querySyntax(gamesQueryProperties, {
-     
-    }),
-    Type.Object(
-      {
-        'external_id.tcgcsv_id': queryProperty(Type.Number())
-      },
-      { additionalProperties: false }
-    )
-  ],
+export const gamesQuerySchema = Type.Object(
   {
-    additionalProperties: false
-  }
+    _id: queryProperty(ObjectIdSchema()),
+    'external_id.tcgcsv_id': queryProperty(Type.Number()),
+    enabled: queryProperty(Type.Boolean()),
+    $sort: Type.Optional(
+      Type.Object({
+        '_id': Type.Optional(Type.Number()),
+        'external_id.tcgcsv_id': Type.Optional(Type.Number()),
+        'name': Type.Optional(Type.Number()),
+        'store_status.visible': Type.Optional(Type.Number())
+
+      })
+    ),
+    $limit: Type.Optional(Type.Number()),
+    $skip: Type.Optional(Type.Number())
+  },
+  { additionalProperties: false }
 )
 export type GamesQuery = Static<typeof gamesQuerySchema>
 export const gamesQueryValidator = getValidator(gamesQuerySchema, queryValidator)

@@ -1,0 +1,58 @@
+@use '@angular/material' as mat;
+
+@mixin my-comp-theme($theme) {
+  .login-subtext a {
+      color: mat.get-theme-color($theme, primary, 20);
+  }
+}
+
+
+.login-card {
+    max-width: 400px;
+    width: 100%; /* Ensure the card doesn't exceed the max width */
+    margin: 0 20px; /* Optional: to add some space on the sides */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .login-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  .login-title {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .login-subtext {
+    margin-top: 20px;
+    font-size: 14px;
+  }
+  
+  mat-form-field {
+    width: 100%;
+  }
+  
+  mat-form-field input {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  
+  button {
+    width: 100%;
+    margin-top: 20px;
+  }
+  
+
+  
+  .login-subtext a {
+    text-decoration: none;
+    font-weight: bold;
+  }
+  
+  .login-subtext a:hover {
+    text-decoration: underline;
+  }

@@ -1,24 +1,30 @@
 import { ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
-import { MatSortModule } from '@angular/material/sort';
+import { MatSort, MatSortModule, Sort } from '@angular/material/sort';
 import { MatTableModule } from '@angular/material/table';
 import { CommonModule } from '@angular/common';
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-
+import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
 @Component({
   selector: 'app-data-table',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatSortModule, MatPaginatorModule],
+  imports: [CommonModule, MatTableModule, MatSortModule, MatPaginatorModule, MatSlideToggleModule ],
   templateUrl: './data-table.component.html',
-  styleUrls: ['./data-table.component.less']
+  styleUrls: ['./data-table.component.scss']
 })
 export class DataTableComponent implements OnChanges {
+  isServerSideSorting: boolean = true;
   @Input() data: any[] = [];
   @Input() displayedColumns: string[] = [];
   @Input() totalLength: number = 0;
   @Output() page: EventEmitter<PageEvent> =  new EventEmitter<PageEvent>();
   dataSource: MatTableDataSource<any>;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
+  @ViewChild(MatSort) sort!: MatSort
+  @Output() sortChanged = new EventEmitter<{ active: string, direction: string } | null>();
+
+
+
   constructor() {
     this.dataSource = new MatTableDataSource();
     
@@ -41,5 +47,48 @@ export class DataTableComponent implements OnChanges {
   }
   getNestedValue(element: any, path: string): any {
     return path.split('.').reduce((acc, part) => acc && acc[part], element);
+  }
+
+  sortData(event: any) {
+    this.sort.sortChange.subscribe((event) => {
+      if (this.isServerSideSorting) {
+        // Emit parameters for server-side sorting
+        let sortParam = null;
+        if (event.direction === 'asc' || event.direction === 'desc') {
+          sortParam = { active: event.active, direction: event.direction.toUpperCase() };
+        }
+        this.sortChanged.emit(sortParam);
+      } else {
+        // Handle client-side sorting
+       // this.clientSideSorting(event.active, event.direction);
+      }
+    });
+  }
+
+  onQtyChange(element: any, column: string, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const value = parseInt(input.value, 10);
+    const keys = column.split('.');
+    let obj = element;
+    for (let i = 0; i < keys.length - 1; i++) {
+      obj = keys[i];
+    }
+    obj[keys[keys.length - 1]] = value;
+    // Add any additional logic to handle the quantity change, such as updating the server
+  }
+
+  onCheckboxChange(element: any, column: string, event: MatSlideToggleChange): void {
+    const checked = (event.checked)
+    const keys = column.split('.');
+    
+    let obj = element;
+    for (let i = 0; i < keys.length - 1; i++) {
+      obj = obj[keys[i]];
+    }
+    obj[keys[keys.length - 1]] = checked;
+
+    console.log(element)
+
+    // Add any additional logic to handle the checkbox change, such as updating the server
   }
 }
