@@ -11,13 +11,22 @@ export class DataService {
 
    }
 
-   public getGames(limit: number, skip: number): any {
+   public getGames(limit: number, skip: number, sort: {active: string, direction: string}| null): any {
+    let direction = -1
+    if(sort != null){
+    if (sort.direction === "ASC"){
+      direction = 1
+    }
     return this._feathers.service('games').watch().find({
       query: {
         $limit: limit, 
-        $skip: skip
+        $skip: skip,
+        $sort: {
+          [sort.active]: direction
+        }
       }
     })
+  }
    }
 
    getSetsForGame(gameId: string){
