@@ -17,6 +17,7 @@ import {
 import type { Application } from '../../declarations'
 import { StoresService, getOptions } from './stores.class'
 import { storesPath, storesMethods } from './stores.shared'
+import { updateStoreStatus } from '../../hooks/update-store-status'
 
 export * from './stores.class'
 export * from './stores.schema'
@@ -48,7 +49,8 @@ export const stores = (app: Application) => {
       remove: []
     },
     after: {
-      all: []
+      all: [],
+      create: [updateStoreStatus]
     },
     error: {
       all: []

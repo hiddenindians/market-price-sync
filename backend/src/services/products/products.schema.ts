@@ -306,7 +306,23 @@ export const productsPatchSchema = Type.Intersect(
       normal: Type.Optional(Type.Number()),
       reverse_foil: Type.Optional(Type.Number()),
       timestamp: Type.Number()
-    })}))
+    })})),
+    Type.Partial(Type.Object({
+      $push: Type.Optional(Type.Object({
+        store_status: Type.Object({
+          store_id: ObjectIdSchema(),
+          selling: Type.Object({
+            enabled: Type.Boolean({ default: false }),
+            quantity: Type.Optional(Type.Number({ default: 0 }))
+          }),
+          buying: Type.Object({
+            enabled: Type.Boolean({ default: false }),
+            quantity: Type.Optional(Type.Number({ default: 0 }))
+          })
+        })
+      }))
+    }))
+
   ],
   {
     $id: 'ProductsPatch'

@@ -1,0 +1,26 @@
+.game-set-select-fields {
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .game-set-select-container mat-form-field + mat-form-field {
+    margin-left: 8px;
+  }
+  
+  .game-set-select-container mat-form-field {
+    width: 220px;
+  }
+  
+  .game-set-select-container form {
+    margin-bottom: 20px;
+  }
+  
+  .game-set-select-container form > * {
+    margin: 12px 0;
+  }
+  
+  .game-set-select-container .mat-radio-button {
+    margin: 0 12px;
+  }
+  
+  

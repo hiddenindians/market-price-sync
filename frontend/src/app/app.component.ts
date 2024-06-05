@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core'
-import { RouterOutlet } from '@angular/router'
+import { RouterLink, RouterOutlet } from '@angular/router'
 import { AuthService } from './services/auth/auth.service'
 import { MatToolbarModule } from '@angular/material/toolbar'
 import { MatButtonModule } from '@angular/material/button'
@@ -15,6 +15,7 @@ import { Observable, map, shareReplay } from 'rxjs'
   standalone: true,
   imports: [
     RouterOutlet,
+    RouterLink,
     MatToolbarModule,
     MatButtonModule,
     MatSidenavModule,

@@ -1,10 +1,8 @@
 import { Component, OnInit, ViewChild } from '@angular/core'
-import { FeathersService } from '../../services/api/feathers.service'
 import { DataService } from '../../services/data/data.service'
-import { Subscription } from 'rxjs'
 import { DataTableComponent } from '../../shared/data-table/data-table.component'
-import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator'
-import { MatTableDataSource, MatTableModule } from '@angular/material/table'
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator'
+import { MatTableModule } from '@angular/material/table'
 import { MatSortModule } from '@angular/material/sort'
 
 @Component({
@@ -16,11 +14,13 @@ import { MatSortModule } from '@angular/material/sort'
 })
 export class DashboardComponent implements OnInit {
   games: any[] = []
-  displayedColumns: string[]  = ['store_status.enabled','name', 'logo']
+  displayedColumns: string[]  = ['store_status.enabled','name']
   totalLength: number = 0
   pageSize: number = 10;
   pageIndex: number = 0;
   defaultSort =  {active: "external_id.tcgcsv_id", direction: "ASC"}
+
+  
 
   constructor(private data: DataService) {}
   ngOnInit() {
