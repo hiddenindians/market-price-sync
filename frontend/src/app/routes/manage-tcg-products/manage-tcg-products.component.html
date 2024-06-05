@@ -1,0 +1,24 @@
+<div class="game-set-select-container">
+<form>
+    <div class="game-set-select-fields">
+    <mat-form-field>
+        <mat-label>Select Game</mat-label>
+        <mat-select [(ngModel)]="selectedGame" (selectionChange)=(onGameSelectionChange($event)) name="game">
+            @for (game of games; track game){
+                <mat-option [value]="game._id">{{game.name}}</mat-option>
+            }
+        </mat-select>
+    </mat-form-field>
+    <mat-form-field>
+        <mat-label>Select Set</mat-label>
+        <mat-select [(ngModel)]="selectedSet" (selectionChange)=(onSetSelectionChange($event)) name="set">
+            @for (set of sets; track set){
+                <mat-option [value]="set._id">{{set.name}}</mat-option>
+            }
+        </mat-select>
+    </mat-form-field>
+    </div>
+</form>
+</div>
+<app-data-table [totalLength]="totalLength"  [data]="products" [displayedColumns]="displayedColumns"
+    (sortChanged)="onSortChange($event)" (page)="onPageChange($event)"></app-data-table>

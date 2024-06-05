@@ -1,19 +1,21 @@
-import { ChangeDetectorRef, Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatSort, MatSortModule, Sort } from '@angular/material/sort';
 import { MatTableModule } from '@angular/material/table';
 import { CommonModule } from '@angular/common';
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
+import { MatInputModule } from '@angular/material/input';
 @Component({
   selector: 'app-data-table',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatSortModule, MatPaginatorModule, MatSlideToggleModule ],
+  imports: [CommonModule, MatTableModule, MatSortModule, MatPaginatorModule, MatSlideToggleModule, MatInputModule ],
   templateUrl: './data-table.component.html',
   styleUrls: ['./data-table.component.scss']
 })
 export class DataTableComponent implements OnChanges {
   isServerSideSorting: boolean = true;
+  objectKeys = Object.keys;
   @Input() data: any[] = [];
   @Input() displayedColumns: string[] = [];
   @Input() totalLength: number = 0;
@@ -23,7 +25,16 @@ export class DataTableComponent implements OnChanges {
   @ViewChild(MatSort) sort!: MatSort
   @Output() sortChanged = new EventEmitter<{ active: string, direction: string } | null>();
 
-
+  headerMapping: { [key: string]: string } = {
+    'store_status.buying.enabled': 'Buying Enabled',
+    'store_status.buying.quantity': 'Buying Quantity',
+    'store_status.selling.enabled': 'Selling Enabled',
+    'store_status.selling.quantity': 'Selling Quantity',
+    'name': 'Name',
+    'collector_number': 'Collector Number',
+    'market_price': 'Market Price'
+    // Add more mappings as needed
+  };
 
   constructor() {
     this.dataSource = new MatTableDataSource();

@@ -11,12 +11,10 @@ interface StoreStatus {
 export const filterStoreStatus = async (context: HookContext) => {
   const { result, params } = context;
   const storeId = params.user?.store_id;
-  console.log(storeId)
-  console.log(result)
+
 
   if (result.data && storeId) {
     if (Array.isArray(result.data)) {
-      console.log("isArray")
       // If the result is an array of games
       context.result.data = result.data.map((game: any) => ({
         ...game,
