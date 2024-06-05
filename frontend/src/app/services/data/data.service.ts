@@ -16,7 +16,6 @@ export class DataService {
       }
       return this._feathers
         .service('games')
-        .watch()
         .find({
           query: {
             $limit: limit,
@@ -32,12 +31,10 @@ export class DataService {
   getSetsForGame(gameId: string) {
     return this._feathers
       .service('sets')
-      .watch()
       .find({
         query: {
           game_id: gameId,
           $limit: 10000,
-        
         }
       })
   }
@@ -50,7 +47,6 @@ export class DataService {
       }
     return this._feathers
       .service('products')
-      .watch()
       .find({
         query: {
           game_id: gameId,
@@ -72,7 +68,6 @@ export class DataService {
       }
     return this._feathers
       .service('products')
-      .watch()
       .find({
         query: {
           set_id: setId,
@@ -89,11 +84,6 @@ export class DataService {
   updateSellingStatus(id: string, storeId: string, enabled: boolean) {
     this._feathers.service('products').patch(id, {
       [`store_status.${storeId}.selling.enabled`]: enabled
-    }).then((result: any) => {
-      console.log(`Successfully updated selling.enabled for storeId ${storeId}`, result);
-      
-    }).catch((error: any) => {
-      console.error('Error updating selling.enabled:', error);
-    });
+    })
   }
 }

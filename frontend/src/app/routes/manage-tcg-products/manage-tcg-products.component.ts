@@ -33,7 +33,7 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   fetchGames(limit: number, skip: number, sort: {active: string, direction: string} | null  ) {
-    this.data.getGames(limit, skip, sort).subscribe((data: any) => {
+    this.data.getGames(limit, skip, sort).then((data: any) => {
       this.games = data.data
       this.selectedGame = this.games[0]._id;
       this.fetchProducts(this.pageSize, skip, this.defaultSort, "", this.games[0]._id,)
@@ -42,7 +42,7 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   fetchSets(gameId: string){
-    this.data.getSetsForGame(gameId).subscribe((data: any)=> {
+    this.data.getSetsForGame(gameId).then((data: any)=> {
       this.sets = data.data;
       console.log(this.sets)
 
@@ -52,14 +52,14 @@ export class ManageTCGProductsComponent implements OnInit {
   fetchProducts(limit: number, skip: number, sort: {active: string, direction: string} | null, setId?: string, gameId?: string){
     if(setId && setId != ""){
       console.log('getting for set')
-      this.data.getProductsForSet(setId, limit, skip, sort ).subscribe((data: any) => {
+      this.data.getProductsForSet(setId, limit, skip, sort ).then((data: any) => {
         this.products = data.data;
         this.totalLength = data.total
 
       })
     } else if (gameId && gameId != "") {
       console.log('getting for game')
-      this.data.getProductsForGame(gameId, limit, skip, sort).subscribe((data: any) => {
+     this.data.getProductsForGame(gameId, limit, skip, sort).then((data: any) => {
         this.products = data.data;
         this.totalLength = data.total
         console.log(this.products)
@@ -90,6 +90,7 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   onGameSelectionChange(event: MatSelectChange){
+
     this.selectedGame = event.value
     this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, "", event.value)
     this.fetchSets(event.value)
@@ -98,11 +99,13 @@ export class ManageTCGProductsComponent implements OnInit {
 
   onSetSelectionChange(event: MatSelectChange){
     this.selectedSet = event.value
+    console.log("Page " +this.pageSize)
     this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, event.value, "")
   }
 
   onSellToggle(event: {id: string, storeId: string, value: boolean}){
-    this.data.updateSellingStatus(event.id, event.storeId, event.value);
+    console.log(event)
+   this.data.updateSellingStatus(event.id, event.storeId, event.value);
   }
 
   onBuyToggle(event: MatSlideToggleChange){

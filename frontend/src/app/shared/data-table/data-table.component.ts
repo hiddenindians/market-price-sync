@@ -122,7 +122,5 @@ export class DataTableComponent implements OnChanges {
     } else if (column.includes('buying')) {
 
     }
-    this.data = this.data
-    // Add any additional logic to handle the checkbox change, such as updating the server
   }
 }

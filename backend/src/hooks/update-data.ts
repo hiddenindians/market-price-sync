@@ -161,15 +161,37 @@ export const processProductsAndPrices = async (context: HookContext) => {
     name: string
     short_name: string
     image_url: string
-   // buying: { enabled: boolean; quantity: number }
-  //  selling: { enabled: boolean; quantity: number }
+    // buying: { enabled: boolean; quantity: number }
+    //  selling: { enabled: boolean; quantity: number }
     type: string
     last_updated: number
     _id: string
-    market_price?: {
-      foil?: number
-      regular?: number
-      reverse_foil?: number
+    price?: {
+      market_price: {
+        foil?: number
+        normal?: number
+        reverse_foil?: number
+      }
+      low_price: {
+        foil?: number
+        normal?: number
+        reverse_foil?: number
+      }
+      mid_price: {
+        foil?: number
+        normal?: number
+        reverse_foil?: number
+      }
+      high_price: {
+        foil?: number
+        normal?: number
+        reverse_foil?: number
+      }
+      direct_low_price: {
+        foil?: number
+        normal?: number
+        reverse_foil?: number
+      }
       timestamp: number
     }
     attack?: number
@@ -236,8 +258,28 @@ export const processProductsAndPrices = async (context: HookContext) => {
   }
 
   interface Price {
-    product_id: string | {}
+    product_id?: string | {}
     market_price: {
+      foil?: number
+      normal?: number
+      reverse_foil?: number
+    }
+    low_price: {
+      foil?: number
+      normal?: number
+      reverse_foil?: number
+    }
+    mid_price: {
+      foil?: number
+      normal?: number
+      reverse_foil?: number
+    }
+    high_price: {
+      foil?: number
+      normal?: number
+      reverse_foil?: number
+    }
+    direct_low_price: {
       foil?: number
       normal?: number
       reverse_foil?: number
@@ -281,14 +323,14 @@ export const processProductsAndPrices = async (context: HookContext) => {
   }
 
   const parseNumberOrString = (input: string): number | string => {
-    const parsedNumber = parseFloat(input);
+    const parsedNumber = parseFloat(input)
     // Check if parsedNumber is a valid number
     if (isNaN(parsedNumber)) {
       // If parsing failed, return the original string
-      return input;
+      return input
     }
     // If parsing succeeded, return the number
-    return parsedNumber;
+    return parsedNumber
   }
   const extractProductData = (foundProduct: FoundProduct): NewProduct => {
     const dataArray: any[] = []
@@ -584,7 +626,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
       //     // }
       //   }
       // })
-      for (var i = 0; i < foundProduct.extendedData.length; i++){
+      for (var i = 0; i < foundProduct.extendedData.length; i++) {
         let toPush = {
           name: foundProduct.extendedData[i].name,
           display_name: foundProduct.extendedData[i].displayName,
@@ -598,8 +640,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
         }
         dataArray.push(toPush)
       }
-    newProduct.extended_data = dataArray;
-      
+      newProduct.extended_data = dataArray
     } else {
       console.log(foundProduct)
     }
@@ -615,8 +656,8 @@ export const processProductsAndPrices = async (context: HookContext) => {
     newProduct.name = `${foundProduct.name}`
 
     newProduct.image_url = `${foundProduct.imageUrl.slice(0, -8)}400w.jpg`
-   // newProduct.buying = { enabled: false, quantity: 0 }
- //   newProduct.selling = { enabled: false, quantity: 0 }
+    // newProduct.buying = { enabled: false, quantity: 0 }
+    //   newProduct.selling = { enabled: false, quantity: 0 }
     newProduct.type = determineProductType(foundProduct)
 
     newProduct.last_updated = Date.now()
@@ -691,7 +732,8 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
           if (
             (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
-            (newProduct.type === 'Single Cards' && (!newProduct.name.includes('Art Card') || !newProduct.name.includes('Art Series'))) ||
+            (newProduct.type === 'Single Cards' &&
+              (!newProduct.name.includes('Art Card') || !newProduct.name.includes('Art Series'))) ||
             newProduct.type === 'Single Cards - Leak' ||
             newProduct.name.includes('Token')
           ) {
@@ -719,10 +761,22 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
           const newPrice: Price = {
             market_price: {
-              [price.subTypeName]: Number(price.marketPrice || price.midPrice)
+              [price.subTypeName]: price.marketPrice ? Number(price.marketPrice) : -1
             },
-            timestamp: Date.now(),
-            product_id: existingProductData.total > 0 ? existingProductData.data[0]._id : {}
+            low_price: {
+              [price.subTypeName]: price.lowPrice ? Number(price.lowPrice) : -1
+            },
+            mid_price: {
+              [price.subTypeName]: price.midPrice ? Number(price.lowPrice) : -1
+            },
+            high_price: {
+              [price.subTypeName]: price.highPrice ? Number(price.lowPrice) : -1
+            },
+            direct_low_price: {
+              [price.subTypeName]: price.directLowPrice ? Number(price.lowPrice) : -1
+            },
+            timestamp: Date.now()
+            // product_id: existingProductData.total > 0 ? existingProductData.data[0]._id : {}
           }
 
           if (existingProductData.total > 0) {
@@ -730,21 +784,24 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
             if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
               //  console.log('updating price')
-              await context.app.service('prices').create(newPrice)
+              await context.app
+                .service('prices')
+                .create({ ...newPrice, product_id: existingProductData.data[0]._id })
               var _id = existingProduct._id as string
               await context.app.service('products').patch(_id, {
                 last_updated: newProduct.last_updated,
-                market_price: { ...newPrice.market_price, timestamp: Date.now() }
+                price: newPrice
               })
             }
           } else if (existingProductData.total > 1) {
             console.log('found too many')
           } else {
             //   console.log('no match')
-            newProduct.market_price = { ...newPrice.market_price, timestamp: Date.now() }
-
+            newProduct.price = {...newPrice}
             await context.app.service('products').create(newProduct)
-            await context.app.service('prices').create(newPrice)
+            await context.app
+              .service('prices')
+              .create({ ...newPrice, product_id: existingProductData.data[0]._id })
           }
         }
 

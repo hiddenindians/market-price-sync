@@ -18,6 +18,26 @@ export const pricesSchema = Type.Object(
       normal: Type.Optional(Type.Number()),
       foil: Type.Optional(Type.Number()),
       reverse_foil: Type.Optional(Type.Number())
+    }),
+    low_price: Type.Object({
+      normal: Type.Optional(Type.Number()),
+      foil: Type.Optional(Type.Number()),
+      reverse_foil: Type.Optional(Type.Number())
+    }),
+    mid_price: Type.Object({
+      normal: Type.Optional(Type.Number()),
+      foil: Type.Optional(Type.Number()),
+      reverse_foil: Type.Optional(Type.Number())
+    }),
+    high_price: Type.Object({
+      normal: Type.Optional(Type.Number()),
+      foil: Type.Optional(Type.Number()),
+      reverse_foil: Type.Optional(Type.Number())
+    }),
+    direct_low_price: Type.Object({
+      normal: Type.Optional(Type.Number()),
+      foil: Type.Optional(Type.Number()),
+      reverse_foil: Type.Optional(Type.Number())   
     })
   },
   { $id: 'Prices', additionalProperties: false }
@@ -29,7 +49,7 @@ export const pricesResolver = resolve<Prices, HookContext<PricesService>>({})
 export const pricesExternalResolver = resolve<Prices, HookContext<PricesService>>({})
 
 // Schema for creating new entries
-export const pricesDataSchema = Type.Pick(pricesSchema, ['timestamp', 'market_price', 'product_id'], {
+export const pricesDataSchema = Type.Pick(pricesSchema, ['timestamp', 'market_price', 'product_id', 'low_price', 'mid_price', 'high_price', "direct_low_price"], {
   $id: 'PricesData'
 })
 export type PricesData = Static<typeof pricesDataSchema>
