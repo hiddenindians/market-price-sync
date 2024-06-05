@@ -17,10 +17,6 @@ export const gamesSchema = Type.Object(
       tcgcsv_id: Type.Optional(Type.Number()),
     }),
     enabled: Type.Boolean({default: false}),
-    store_status: Type.Array(Type.Object({
-      store_id: ObjectIdSchema(),
-      visible: Type.Boolean({ default: false })
-    }))
   },
   { $id: 'Games', additionalProperties: false }
 )
@@ -57,8 +53,7 @@ export const gamesQuerySchema = Type.Object(
         '_id': Type.Optional(Type.Number()),
         'external_id.tcgcsv_id': Type.Optional(Type.Number()),
         'name': Type.Optional(Type.Number()),
-        'store_status.visible': Type.Optional(Type.Number())
-
+      
       })
     ),
     $limit: Type.Optional(Type.Number()),

@@ -21,4 +21,4 @@
 </form>
 </div>
 <app-data-table [totalLength]="totalLength"  [data]="products" [displayedColumns]="displayedColumns"
-    (sortChanged)="onSortChange($event)" (page)="onPageChange($event)"></app-data-table>
+    (sortChanged)="onSortChange($event)" (sellToggle)="onSellToggle($event)" (page)="onPageChange($event)"></app-data-table>
