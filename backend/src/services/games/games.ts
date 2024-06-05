@@ -17,7 +17,6 @@ import {
 import type { Application } from '../../declarations'
 import { GamesService, getOptions } from './games.class'
 import { gamesPath, gamesMethods } from './games.shared'
-import { filterStoreStatus } from '../../hooks/filter-store-status'
 
 export * from './games.class'
 export * from './games.schema'
@@ -49,7 +48,7 @@ export const games = (app: Application) => {
       remove: []
     },
     after: {
-      all: [filterStoreStatus]
+      all: []
     },
     error: {
       all: []

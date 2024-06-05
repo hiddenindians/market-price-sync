@@ -85,4 +85,15 @@ export class DataService {
       })
     }
   }
+
+  updateSellingStatus(id: string, storeId: string, enabled: boolean) {
+    this._feathers.service('products').patch(id, {
+      [`store_status.${storeId}.selling.enabled`]: enabled
+    }).then((result: any) => {
+      console.log(`Successfully updated selling.enabled for storeId ${storeId}`, result);
+      
+    }).catch((error: any) => {
+      console.error('Error updating selling.enabled:', error);
+    });
+  }
 }

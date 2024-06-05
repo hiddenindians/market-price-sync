@@ -18,6 +18,7 @@ import type { Application } from '../../declarations'
 import { ProductsService, getOptions } from './products.class'
 import { productsPath, productsMethods } from './products.shared'
 import { lookupPrices } from '../../hooks/lookup-prices'
+import { filterStoreStatus } from '../../hooks/filter-store-status'
 
 export * from './products.class'
 export * from './products.schema'
@@ -59,7 +60,7 @@ export const products = (app: Application) => {
     },
     after: {
       all: [],
-      find: []
+      find: [filterStoreStatus],
     },
     error: {
       all: []

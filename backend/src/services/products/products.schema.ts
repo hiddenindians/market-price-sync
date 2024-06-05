@@ -33,12 +33,14 @@ export const productsSchema = Type.Object(
     //   quantity: Type.Optional(Type.Number({ default: 0 }))
     // }),
     last_updated: Type.Number(),
-    market_price: Type.Optional(Type.Object({
-      foil: Type.Optional(Type.Number()),
-      normal: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number()),
-      timestamp: Type.Number()
-    })),
+    market_price: Type.Optional(
+      Type.Object({
+        foil: Type.Optional(Type.Number()),
+        normal: Type.Optional(Type.Number()),
+        reverse_foil: Type.Optional(Type.Number()),
+        timestamp: Type.Number()
+      })
+    ),
     average_cost: Type.Optional(Type.Number()),
     pos_id: Type.Optional(Type.String()),
     type: Type.Optional(Type.String()),
@@ -49,12 +51,15 @@ export const productsSchema = Type.Object(
     text: Type.Optional(Type.String()),
     rarity: Type.Optional(Type.String()),
     collector_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
-    extended_data: Type.Optional(Type.Array(Type.Object({
-      name: Type.Optional(Type.String()),
-      display_name: Type.Optional(Type.String()),
-      value: Type.Optional(Type.Union([Type.String(), Type.Number()])) ,
-    }))),
-
+    extended_data: Type.Optional(
+      Type.Array(
+        Type.Object({
+          name: Type.Optional(Type.String()),
+          display_name: Type.Optional(Type.String()),
+          value: Type.Optional(Type.Union([Type.String(), Type.Number()]))
+        })
+      )
+    ),
 
     /* MTG */
     sub_type: Type.Optional(Type.String()),
@@ -84,8 +89,8 @@ export const productsSchema = Type.Object(
     character_version: Type.Optional(Type.String()),
     ink_type: Type.Optional(Type.String()),
     lore_value: Type.Optional(Type.String()),
-    classification:Type.Optional(Type.String()),
-    promo_type:Type.Optional(Type.String()),
+    classification: Type.Optional(Type.String()),
+    promo_type: Type.Optional(Type.String()),
     move_cost: Type.Optional(Type.String()),
     /* Yu Gi Oh! */
     monster_type: Type.Optional(Type.String()),
@@ -140,34 +145,32 @@ export const productsSchema = Type.Object(
     class: Type.Optional(Type.String()),
 
     /* WIXOSS */
-    limit:Type.Optional(Type.Number()),
+    limit: Type.Optional(Type.Number()),
     team_name: Type.Optional(Type.String()),
-    LRIG_type_class:Type.Optional(Type.String()),
-    gtin:Type.Optional(Type.Number()),
+    LRIG_type_class: Type.Optional(Type.String()),
+    gtin: Type.Optional(Type.Number()),
     sku: Type.Optional(Type.String()),
     product_weight: Type.Optional(Type.String()),
     dimensions: Type.Optional(Type.String()),
-    grow_cost:Type.Optional(Type.String()),
-    timing:Type.Optional(Type.String()),
+    grow_cost: Type.Optional(Type.String()),
+    timing: Type.Optional(Type.String()),
 
     /* Star Wars Unl */
-    traits:Type.Optional(Type.String()),
-    arena_type:Type.Optional(Type.String()),
-    aspect:Type.Optional(Type.String()),
+    traits: Type.Optional(Type.String()),
+    arena_type: Type.Optional(Type.String()),
+    aspect: Type.Optional(Type.String()),
 
     /* Alpha Clash */
-    character_name:Type.Optional(Type.String()),
-    resource_cost:Type.Optional(Type.String()),
-    planet_name:Type.Optional(Type.String()),
-    location_name:Type.Optional(Type.String()),
-
-
+    character_name: Type.Optional(Type.String()),
+    resource_cost: Type.Optional(Type.String()),
+    planet_name: Type.Optional(Type.String()),
+    location_name: Type.Optional(Type.String()),
 
     /* Store Specific Settings */
     store_status: Type.Optional(
-      Type.Array(
+      Type.Record(
+        Type.String(),
         Type.Object({
-          store_id: ObjectIdSchema(),
           selling: Type.Object({
             enabled: Type.Boolean({ default: false }),
             quantity: Type.Optional(Type.Number({ default: 0 }))
@@ -234,8 +237,8 @@ export const productsDataSchema = Type.Pick(
     'market_price',
     'average_cost',
     'pos_id',
-   // 'buying',
-   // 'selling',
+    // 'buying',
+    // 'selling',
     'monster_type',
     'attack',
     'defense',
@@ -296,33 +299,40 @@ export const productsDataResolver = resolve<Products, HookContext<ProductsServic
 // Schema for updating existing entries
 export const productsPatchSchema = Type.Intersect(
   [
-   // Type.Partial(Type.Object({ 'selling.enabled': Type.Boolean() })),
-  //  Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
- //   Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
- //   Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
+    // Type.Partial(Type.Object({ 'selling.enabled': Type.Boolean() })),
+    //  Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
+    //   Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
+    //   Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
     Type.Partial(Type.Object({ last_updated: Type.Number() })),
-    Type.Partial(Type.Object({market_price: Type.Object({
-      foil: Type.Optional(Type.Number()),
-      normal: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number()),
-      timestamp: Type.Number()
-    })})),
-    Type.Partial(Type.Object({
-      $push: Type.Optional(Type.Object({
-        store_status: Type.Object({
-          store_id: ObjectIdSchema(),
-          selling: Type.Object({
-            enabled: Type.Boolean({ default: false }),
-            quantity: Type.Optional(Type.Number({ default: 0 }))
-          }),
-          buying: Type.Object({
-            enabled: Type.Boolean({ default: false }),
-            quantity: Type.Optional(Type.Number({ default: 0 }))
-          })
+    Type.Partial(
+      Type.Object({
+        market_price: Type.Object({
+          foil: Type.Optional(Type.Number()),
+          normal: Type.Optional(Type.Number()),
+          reverse_foil: Type.Optional(Type.Number()),
+          timestamp: Type.Number()
         })
-      }))
-    }))
-
+      })
+    ),
+    Type.Partial(
+      Type.Object({
+        store_status: Type.Optional(
+          Type.Record(
+            Type.String(),
+            Type.Object({
+              selling: Type.Object({
+                enabled: Type.Boolean({ default: false }),
+                quantity: Type.Optional(Type.Number({ default: 0 }))
+              }),
+              buying: Type.Object({
+                enabled: Type.Boolean({ default: false }),
+                quantity: Type.Optional(Type.Number({ default: 0 }))
+              })
+            })
+          )
+        )
+      })
+    )
   ],
   {
     $id: 'ProductsPatch'
@@ -372,8 +382,10 @@ export const productsQuerySchema = Type.Intersect(
     }),
     Type.Object(
       {
-        'selling.enabled': queryProperty(Type.Boolean()),
-        'selling.quantity': queryProperty(Type.Number()),
+        'store_status.store_id': queryProperty(Type.Boolean()),
+
+        'store_status.selling.enabled': queryProperty(Type.Boolean()),
+        'store_status.selling.quantity': queryProperty(Type.Number()),
         'external_id.tcgcsv_id': queryProperty(Type.Number())
       },
       { additionalProperties: false }
