@@ -33,14 +33,44 @@ export const productsSchema = Type.Object(
     //   quantity: Type.Optional(Type.Number({ default: 0 }))
     // }),
     last_updated: Type.Number(),
-    market_price: Type.Optional(
-      Type.Object({
-        foil: Type.Optional(Type.Number()),
-        normal: Type.Optional(Type.Number()),
-        reverse_foil: Type.Optional(Type.Number()),
-        timestamp: Type.Number()
-      })
-    ),
+    price: Type.Object({
+      market_price: Type.Optional(
+        Type.Object({
+          foil: Type.Optional(Type.Number()),
+          normal: Type.Optional(Type.Number()),
+          reverse_foil: Type.Optional(Type.Number())
+        })
+      ),
+      low_price: Type.Optional(
+        Type.Object({
+          foil: Type.Optional(Type.Number()),
+          normal: Type.Optional(Type.Number()),
+          reverse_foil: Type.Optional(Type.Number())
+        })
+      ),
+      mid_price: Type.Optional(
+        Type.Object({
+          foil: Type.Optional(Type.Number()),
+          normal: Type.Optional(Type.Number()),
+          reverse_foil: Type.Optional(Type.Number())
+        })
+      ),
+      high_price: Type.Optional(
+        Type.Object({
+          foil: Type.Optional(Type.Number()),
+          normal: Type.Optional(Type.Number()),
+          reverse_foil: Type.Optional(Type.Number())
+        })
+      ),
+      direct_low_price: Type.Optional(
+        Type.Object({
+          foil: Type.Optional(Type.Number()),
+          normal: Type.Optional(Type.Number()),
+          reverse_foil: Type.Optional(Type.Number())
+        })
+      ),
+      timestamp: Type.Optional(Type.Number())
+    }),
     average_cost: Type.Optional(Type.Number()),
     pos_id: Type.Optional(Type.String()),
     type: Type.Optional(Type.String()),
@@ -234,7 +264,7 @@ export const productsDataSchema = Type.Pick(
     'character_version',
     'ink_type',
     'lore_value',
-    'market_price',
+    'price',
     'average_cost',
     'pos_id',
     // 'buying',
@@ -306,7 +336,7 @@ export const productsPatchSchema = Type.Intersect(
     Type.Partial(Type.Object({ last_updated: Type.Number() })),
     Type.Partial(
       Type.Object({
-        market_price: Type.Object({
+        price: Type.Object({
           foil: Type.Optional(Type.Number()),
           normal: Type.Optional(Type.Number()),
           reverse_foil: Type.Optional(Type.Number()),
@@ -344,7 +374,6 @@ export const productsPatchResolver = resolve<Products, HookContext<ProductsServi
 
 // Schema for allowed query properties
 export const productsQueryProperties = Type.Pick(productsSchema, [
-  'market_price',
   'collector_number',
   '_id',
   'text',
