@@ -4,7 +4,7 @@ import cacheExchangeRate from './services/exchangeRate.js';
 import { showHeader, showLogin, showDashboard } from './views/index.js';
 
 import { loginListener, showGamesListListener, homeListener}  from '../eventListeners/index.js'
-import { login } from './utils/index.js';
+import { fetchGames, login } from './utils/index.js';
 loginListener(); showGamesListListener(); homeListener();
 
 console.log('pop')
@@ -29,6 +29,7 @@ const initializeApp = async () => {
 
   showHeader();
   login()
+  fetchGames();
 
   
 };
