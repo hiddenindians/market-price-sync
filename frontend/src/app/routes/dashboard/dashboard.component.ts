@@ -24,31 +24,7 @@ export class DashboardComponent implements OnInit {
 
   constructor(private data: DataService) {}
   ngOnInit() {
-    this.fetchGames(this.pageSize, this.pageIndex * this.pageSize, this.defaultSort);
   }
 
-  fetchGames(limit: number, skip: number, sort: {active: string, direction: string} | null  ) {
-    this.data.getGames(limit, skip, sort).subscribe((data: any) => {
-      this.games = data.data
-      this.totalLength = data.total
-      console.log('Fetched games:', this.games); // Verify data is fetched
-      console.log('Fetched total:', this.totalLength);
-    })
-  }
-
-  
-
-  onPageChange(event: PageEvent) {
-    this.pageSize = event.pageSize;
-    this.pageIndex = event.pageIndex;
-    const limit = event.pageSize;
-    const skip = event.pageIndex * event.pageSize;
-    this.fetchGames(limit, skip, this.defaultSort);
-  }
-
-  onSortChange(event: {active: string, direction: string } | null ){
-    console.log(event)
-    this.fetchGames(this.pageSize, this.pageIndex * this.pageSize, event)
-  }
 
 }

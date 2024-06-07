@@ -455,7 +455,12 @@ export const processProductsAndPrices = async (context: HookContext) => {
       return 'Decks'
     }
 
-    if((name.includes('Tournament Pack') && categoryId !== 1)) return "Promotion Cards"
+    if (name.includes('SDCC')) {
+      const yearMatch = name.match(/SDCC (\d{4})/);
+      if (yearMatch) return 'Promotion Cards';
+    }
+
+    if((name.includes('Tournament Pack') && categoryId !== 1) || name.includes("Promo Pack")) return "Promotion Cards"
 
     
 
