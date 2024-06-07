@@ -64,7 +64,7 @@ const importLightspeedCSV = () => {
 };
 
 const fetchGames = async () => {
-  // Implementation for fetching games
+  client.service('fetch-games').create({})
 };
 
 const exportSellingBySet = async (id, limit, skip) => {

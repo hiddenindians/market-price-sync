@@ -12,13 +12,14 @@ export const filterStoreStatus = async (context: HookContext) => {
   const { result, params } = context;
   const storeId = params.user?.store_id;
 
-  console.log(context.result.data)
-
+  if(!context.params.provider){
+    return context;
+  }
+console.log(result.data)
   if (result && storeId) {
     if (Array.isArray(result.data)) {
       // If the result is an array of products
       context.result.data = result.data.map((product: any) => {
-       console.log(product)
         if (!product.store_status) {
           product.store_status = {};
         }

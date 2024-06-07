@@ -86,4 +86,22 @@ export class DataService {
       [`store_status.${storeId}.selling.enabled`]: enabled
     })
   }
+
+  updateBuyingStatus(id: string, storeId: string, enabled: boolean) {
+    this._feathers.service('products').patch(id, {
+      [`store_status.${storeId}.buying.enabled`]: enabled
+    })
+  }
+
+  updatSellingQuantity(id: string, storeId: string, quantity: number) {
+    this._feathers.service('products').patch(id, {
+      [`store_status.${storeId}.selling.quantity`]: quantity
+    })
+  }
+
+  updateBuyingQuantity(id: string, storeId: string, quantity: number) {
+    this._feathers.service('products').patch(id, {
+      [`store_status.${storeId}.buying.quantity`]: quantity
+    })
+  }
 }

@@ -13,7 +13,7 @@ import { MatSort, MatSortModule, Sort } from '@angular/material/sort'
 import { MatTableModule } from '@angular/material/table'
 import { CommonModule } from '@angular/common'
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator'
-import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
+import { MatSlideToggle, MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
 import { MatInputModule } from '@angular/material/input'
 @Component({
   selector: 'app-data-table',
@@ -39,9 +39,12 @@ export class DataTableComponent implements OnChanges {
   dataSource: MatTableDataSource<any>
   @ViewChild(MatPaginator) paginator!: MatPaginator
   @ViewChild(MatSort) sort!: MatSort
+  @ViewChild(MatSlideToggle) sToggle!: MatSlideToggle
   @Output() sortChanged = new EventEmitter<{ active: string; direction: string } | null>()
-  @Output() buyToggle = new EventEmitter<MatSlideToggleChange>()
-  @Output() sellToggle = new EventEmitter<{id: string, storeId: string, value: boolean}>()
+  @Output() buyToggle = new EventEmitter<{ id: string; storeId: string; value: boolean }>()
+  @Output() sellToggle = new EventEmitter<{ id: string; storeId: string; value: boolean }>()
+  @Output() buyQuantity = new EventEmitter<{ id: string; storeId: string; value: number }>()
+  @Output() sellQuantity = new EventEmitter<{ id: string; storeId: string; value: number }>()
 
   headerMapping: { [key: string]: string } = {
     'store_status.buying.enabled': 'Buying Enabled',
@@ -97,30 +100,35 @@ export class DataTableComponent implements OnChanges {
   onQtyChange(element: any, column: string, event: Event): void {
     const input = event.target as HTMLInputElement
     const value = parseInt(input.value, 10)
-    const keys = column.split('.')
-    let obj = element
-    for (let i = 0; i < keys.length - 1; i++) {
-      obj = keys[i]
+    if (column.includes('selling')) {
+      this.sellQuantity.emit({
+        id: element._id,
+        storeId: this.objectKeys(element.store_status)[0],
+        value: value
+      })
+    } else if (column.includes('buying')) {
+      this.buyQuantity.emit({
+        id: element._id,
+        storeId: this.objectKeys(element.store_status)[0],
+        value: value
+      })
     }
-    obj[keys[keys.length - 1]] = value
     // Add any additional logic to handle the quantity change, such as updating the server
   }
 
   onCheckboxChange(element: any, column: string, event: MatSlideToggleChange): void {
-    const checked = event.checked
-    const keys = column.split('.')
-
-    // let obj = element;
-    // for (let i = 0; i < keys.length - 1; i++) {
-    //   obj = obj[keys[i]];
-    // }
-    // obj[keys[keys.length - 1]] = checked;
-    console.log(event)
-    console.log(column)
     if (column.includes('selling')) {
-      this.sellToggle.emit({id: element._id, storeId: this.objectKeys(element.store_status)[0], value: event.checked})
+      this.sellToggle.emit({
+        id: element._id,
+        storeId: this.objectKeys(element.store_status)[0],
+        value: event.checked
+      })
     } else if (column.includes('buying')) {
-
+      this.buyToggle.emit({
+        id: element._id,
+        storeId: this.objectKeys(element.store_status)[0],
+        value: event.checked
+      })
     }
   }
 }

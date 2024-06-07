@@ -108,8 +108,17 @@ export class ManageTCGProductsComponent implements OnInit {
    this.data.updateSellingStatus(event.id, event.storeId, event.value);
   }
 
-  onBuyToggle(event: MatSlideToggleChange){
+  onBuyToggle(event: {id: string, storeId: string, value: boolean}){
     console.log(event)
+    this.data.updateBuyingStatus(event.id, event.storeId, event.value);
+  }
+
+  onBuyQuantityChange(event: {id: string, storeId: string, value: number}){
+    this.data.updateBuyingQuantity(event.id, event.storeId, event.value)
+  }
+
+  onSellQuantityChange(event: {id: string, storeId: string, value: number}){
+    this.data.updatSellingQuantity(event.id, event.storeId, event.value)
   }
 
 }

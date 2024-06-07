@@ -5,12 +5,15 @@ const BATCH_SIZE = 100; // Adjust the batch size as needed
 
 export const updateStoreStatus = async (context: HookContext) => {
   const { app, result } = context;
-  const storeId = result._id;
+  const storeId = context.arguments[0].user.store_id;
 
+  if(!context.params.provider){
+    return context;
+  }
+  
+  console.log(context)
   // Fetch all products
-  const products = await app.service('products').find({
-    paginate: false
-  });
+  const products = context.result.data 
 
   // Process products in batches
   for (let i = 0; i < products.length; i += BATCH_SIZE) {

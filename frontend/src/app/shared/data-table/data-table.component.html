@@ -7,7 +7,7 @@
       <td mat-cell class="overflow" *matCellDef="let element">
         <ng-container [ngSwitch]="column">
           <ng-container *ngSwitchCase="'market_price'">
-            {{element.market_price[(objectKeys(element.market_price)[0])]}}
+            {{element.price.market_price[(objectKeys(element.price.market_price)[0])]}}
           </ng-container>
           <ng-container class="overflow"*ngSwitchCase="'image_url'">
             <img [src]="getNestedValue(element, column)" alt="{{getNestedValue(element, 'name')}}"
@@ -22,8 +22,7 @@
                 (change)="onQtyChange(element, column, $event)">
             </mat-form-field> </ng-container>
           <ng-container *ngSwitchCase="'store_status.selling.enabled'">
-    
-            <mat-slide-toggle (change)="onCheckboxChange(element, column, $event)" checked="{{element.store_status[objectKeys(element.store_status)[0]].selling.enabled}}"></mat-slide-toggle>
+            <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, column, $event)" checked="{{element.store_status[objectKeys(element.store_status)[0]].selling.enabled}}"></mat-slide-toggle>
           </ng-container>
           <ng-container *ngSwitchCase="'store_status.selling.quantity'">
             <mat-form-field appearance="outline"> <input matInput type="number" value="{{element.store_status[objectKeys(element.store_status)[0]].selling.quantity}}"
