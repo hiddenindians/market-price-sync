@@ -1,6 +1,6 @@
 // // For more information about this file see https://dove.feathersjs.com/guides/cli/service.schemas.html
 import { resolve } from '@feathersjs/schema'
-import { Type, getValidator, querySyntax } from '@feathersjs/typebox'
+import { Type, getValidator, queryProperty, querySyntax } from '@feathersjs/typebox'
 import { ObjectIdSchema } from '@feathersjs/typebox'
 import type { Static } from '@feathersjs/typebox'
 
@@ -71,10 +71,20 @@ export const setsPatchResolver = resolve<Sets, HookContext<SetsService>>({})
 // Schema for allowed query properties
 export const setsQueryProperties = Type.Pick(setsSchema, ['_id', 'name', 'enabled', 'game_id','external_id'])
 export const setsQuerySchema = Type.Intersect(
-  [
-    querySyntax(setsQueryProperties, {name: { $regex: Type.String(), $options: Type.String()}}),
-    // Add additional query properties here
-    Type.Object({}, { additionalProperties: false })
+  [   
+    Type.Object({
+          'game_id': queryProperty(ObjectIdSchema()),
+          'external_id.tcgcsv_id': queryProperty(Type.Number()),
+          'name': queryProperty(Type.String()),
+          $sort:Type.Optional(Type.Object({
+              '_id': Type.Optional(Type.Number()),
+              'external_id.tcgcsv_id': Type.Optional(Type.Number()),
+              'name': Type.Optional(Type.Number()),
+            
+            })),
+            $limit: Type.Optional(Type.Number()),
+            $skip: Type.Optional(Type.Number())          
+    }, { additionalProperties: false })
   ],
   { additionalProperties: false }
 )

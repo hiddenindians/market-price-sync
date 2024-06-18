@@ -21,7 +21,8 @@
             <mat-form-field appearance="outline"> <input matInput  type="number" value="{{element.store_status[objectKeys(element.store_status)[0]].buying.quantity}}"
                 (change)="onQtyChange(element, column, $event)">
             </mat-form-field> </ng-container>
-          <ng-container *ngSwitchCase="'store_status.selling.enabled'">
+
+              <ng-container *ngSwitchCase="'store_status.selling.enabled'">
             <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, column, $event)" checked="{{element.store_status[objectKeys(element.store_status)[0]].selling.enabled}}"></mat-slide-toggle>
           </ng-container>
           <ng-container *ngSwitchCase="'store_status.selling.quantity'">
@@ -29,12 +30,17 @@
                 (change)="onQtyChange(element, column, $event)">
             </mat-form-field>
           </ng-container>
+          <ng-container *ngSwitchCase="'buylist_price'">
+            {{ calculateBuylistPrice(element.price.market_price[objectKeys(element.price.market_price)[0]]) | number:'1.2-2' }}
+          </ng-container>
           <ng-container *ngSwitchDefault>
             {{ getNestedValue(element, column) }}
           </ng-container>
         </ng-container>
       </td>
     </ng-container>
+
+  
 
     <!-- Header and Row Declarations -->
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

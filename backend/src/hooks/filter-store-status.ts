@@ -15,7 +15,6 @@ export const filterStoreStatus = async (context: HookContext) => {
   if(!context.params.provider){
     return context;
   }
-console.log(result.data)
   if (result && storeId) {
     if (Array.isArray(result.data)) {
       // If the result is an array of products
