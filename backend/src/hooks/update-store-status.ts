@@ -11,7 +11,6 @@ export const updateStoreStatus = async (context: HookContext) => {
     return context;
   }
   
-  console.log(context)
   // Fetch all products
   const products = context.result.data 
 

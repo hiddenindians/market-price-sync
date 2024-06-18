@@ -17,7 +17,12 @@
             }
         </mat-select>
     </mat-form-field>
+    <div class="px-1 py-1">
+        <button type="button" mat-raised-button (click)="fileInput.click()">Upload Lightspeed CSV</button>
+        <input hidden (change)="importCSV($event)" #fileInput type="file" id="file">
+        </div>
     </div>
+
 </form>
 </div>
 <app-data-table [totalLength]="totalLength"  [data]="products" [displayedColumns]="displayedColumns"

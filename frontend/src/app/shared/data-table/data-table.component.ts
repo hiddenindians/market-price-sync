@@ -47,14 +47,15 @@ export class DataTableComponent implements OnChanges {
   @Output() sellQuantity = new EventEmitter<{ id: string; storeId: string; value: number }>()
 
   headerMapping: { [key: string]: string } = {
-    'store_status.buying.enabled': 'Buying Enabled',
-    'store_status.buying.quantity': 'Buying Quantity',
+    'store_status.buying.enabled': 'Buylist Enabled',
+    'store_status.buying.quantity': 'Buylist Quantity',
     'store_status.selling.enabled': 'Selling Enabled',
     'store_status.selling.quantity': 'Selling Quantity',
     name: 'Name',
     collector_number: 'Collector Number',
     market_price: 'Market Price',
-    image_url: 'Image'
+    image_url: 'Image',
+    buylist_price: 'Buylist Price'
     // Add more mappings as needed
   }
 
@@ -106,12 +107,31 @@ export class DataTableComponent implements OnChanges {
         storeId: this.objectKeys(element.store_status)[0],
         value: value
       })
+
+      if (value > 0) {
+        element.store_status[this.objectKeys(element.store_status)[0]].selling.enabled = true;
+
+        this.sellToggle.emit({
+          id: element._id,
+          storeId: this.objectKeys(element.store_status)[0],
+          value: true
+        });
+      }
     } else if (column.includes('buying')) {
       this.buyQuantity.emit({
         id: element._id,
         storeId: this.objectKeys(element.store_status)[0],
         value: value
       })
+      if (value > 0) {
+        element.store_status[this.objectKeys(element.store_status)[0]].buying.enabled = true;
+
+        this.buyToggle.emit({
+          id: element._id,
+          storeId: this.objectKeys(element.store_status)[0],
+          value: true
+        });
+      }
     }
     // Add any additional logic to handle the quantity change, such as updating the server
   }
@@ -130,5 +150,9 @@ export class DataTableComponent implements OnChanges {
         value: event.checked
       })
     }
+  }
+
+  calculateBuylistPrice(marketPrice: number): number {
+    return marketPrice * 0.6;
   }
 }

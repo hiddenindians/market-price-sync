@@ -35,8 +35,15 @@ export class DataService {
         query: {
           game_id: gameId,
           $limit: 10000,
+          $sort: {
+            'external_id.tcgcsv_id': -1
+          }
         }
       })
+  }
+
+  getProduct(query: {}){
+    return this._feathers.service('products').find({query: query})
   }
 
   getProductsForGame(gameId: string, limit: number, skip: number, sort: {active: string, direction: string} | null) {
@@ -81,6 +88,9 @@ export class DataService {
     }
   }
 
+  patchProduct(id: string, body: {}){
+    this._feathers.service('products').patch(id, body)
+  }
   updateSellingStatus(id: string, storeId: string, enabled: boolean) {
     this._feathers.service('products').patch(id, {
       [`store_status.${storeId}.selling.enabled`]: enabled

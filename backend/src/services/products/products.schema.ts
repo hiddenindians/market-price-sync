@@ -208,8 +208,9 @@ export const productsSchema = Type.Object(
           buying: Type.Object({
             enabled: Type.Boolean({ default: false }),
             quantity: Type.Optional(Type.Number({ default: 0 }))
-          })
-        })
+          }),
+          pos_id: Type.Optional(Type.String())
+        }),
       )
     )
   },
@@ -357,7 +358,8 @@ export const productsPatchSchema = Type.Intersect(
               buying: Type.Object({
                 enabled: Type.Boolean({ default: false }),
                 quantity: Type.Optional(Type.Number({ default: 0 }))
-              })
+              }),
+              pos_id: Type.Optional(Type.String())
             })
           )
         )
@@ -382,7 +384,6 @@ export const productsQueryProperties = Type.Pick(productsSchema, [
   'set_id',
   //'buying',
   'name',
-  'pos_id'
 ])
 // export const productsQuerySchema = Type.Object(
 //   {
@@ -412,7 +413,7 @@ export const productsQuerySchema = Type.Intersect(
     Type.Object(
       {
         'store_status.store_id': queryProperty(Type.Boolean()),
-
+        'store_status.pos_id':queryProperty(Type.String()),
         'store_status.selling.enabled': queryProperty(Type.Boolean()),
         'store_status.selling.quantity': queryProperty(Type.Number()),
         'external_id.tcgcsv_id': queryProperty(Type.Number())
