@@ -17,9 +17,7 @@ import {
 import type { Application } from '../../declarations'
 import { ProductsService, getOptions } from './products.class'
 import { productsPath, productsMethods } from './products.shared'
-import { lookupPrices } from '../../hooks/lookup-prices'
 import { filterStoreStatus } from '../../hooks/filter-store-status'
-import { updateStoreStatus } from '../../hooks/update-store-status'
 
 export * from './products.class'
 export * from './products.schema'

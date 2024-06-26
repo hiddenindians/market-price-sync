@@ -14,81 +14,181 @@ export class DataService {
       if (sort.direction === 'ASC') {
         direction = 1
       }
-      return this._feathers
-        .service('games')
-        .find({
-          query: {
-            $limit: limit,
-            $skip: skip,
-            $sort: {
-              [sort.active]: direction
-            }
+      return this._feathers.service('games').find({
+        query: {
+          $limit: limit,
+          $skip: skip,
+          $sort: {
+            [sort.active]: direction
           }
-        })
+        }
+      })
     }
   }
 
   getSetsForGame(gameId: string) {
-    return this._feathers
+    return this._feathers.service('sets').find({
+      query: {
+        game_id: gameId,
+        $limit: 10000,
+        $sort: {
+          'external_id.tcgcsv_id': -1
+        }
+      }
+    })
+  }
+
+  getProduct(query: {}) {
+    console.log(query)
+    return this._feathers.service('products').find({ query: query })
+  }
+
+  getProductByPOSId(posId: string, storeId: string) {
+    return this._feathers.service('products').find({
+      query: {
+        [`store_status.${storeId}.pos_id`]: posId
+      }
+    })
+  }
+
+  getProductsForGame(
+    gameId: string,
+    limit: number,
+    skip: number,
+    sort: { active: string; direction: string } | null
+  ) {
+    let direction = -1
+    if (sort != null) {
+      if (sort.direction === 'ASC') {
+        direction = 1
+      }
+      return this._feathers.service('products').find({
+        query: {
+          game_id: gameId,
+          $sort: {
+            [sort.active]: direction
+          },
+          $limit: limit,
+          $skip: skip,
+          
+        }
+      })
+    }
+  }
+
+  getProductsForSet(
+    setId: string,
+    limit: number,
+    skip: number,
+    sort: { active: string; direction: string } | null
+  ) {
+    let direction = -1
+    if (sort != null) {
+      if (sort.direction === 'ASC') {
+        direction = 1
+      }
+
+     
+
+      if (sort.active === 'collector_number'){
+        sort.active = 'sort_number'
+      }
+
+      let sortBody = {
+        [sort.active]: direction
+      }
+
+      if (sort.active === 'market_price'){
+
+        sortBody = {
+          'price.market_price.Normal': direction,
+          'price.market_price.Foil': direction,
+        }
+      }
+
+      return this._feathers.service('products').find({
+        query: {
+          set_id: setId,
+          $sort: sortBody,
+          $limit: limit,
+          $skip: skip,
+          
+        }
+      })
+    }
+  }
+
+  getSellingForSet(setId: string, storeId: string, newProductsOnly: boolean) {
+    let query: Query = {
+      set_id: setId,
+      [`store_status.${storeId}.selling.enabled`]: true,
+      $limit: 10000,
+      $sort: {
+        sort_number: 1,
+        'external_id.tcgcsv_group_id': 1
+      }
+    }
+
+    if (newProductsOnly) {
+      query[`store_status.${storeId}.pos_id`] = {$exists: false};  
+    }
+    console.log(query)
+    return this._feathers.service('products').find({
+      query: query
+    })
+  }
+
+  getSellingForGame(gameId: string, storeId: string, newProductsOnly: boolean) {
+   let query: Query = {
+    game_id: gameId,
+    [`store_status.${storeId}.selling.enabled`]: true,
+    $limit: 10000,
+    $sort: {
+      sort_number: 1,
+      'external_id.tcgcsv_group_id': 1
+    }
+  }
+  if (newProductsOnly) {
+    query[`store_status.${storeId}.pos_id`] = {$exists: false};  
+  }
+    return this._feathers.service('products').find({
+      query: query
+    })
+  }
+
+  async getGameNameFromId(gameId: string): Promise<string> {
+    let toReturn = ''
+    await this._feathers
+      .service('games')
+      .find({
+        query: {
+          _id: gameId
+        }
+      })
+      .then((data: any) => {
+        toReturn = data.data[0].name
+      })
+
+    return toReturn
+  }
+  async getSetNameFromId(setId: string): Promise<string> {
+    let toReturn = ''
+    await this._feathers
       .service('sets')
       .find({
         query: {
-          game_id: gameId,
-          $limit: 10000,
-          $sort: {
-            'external_id.tcgcsv_id': -1
-          }
+          _id: setId
         }
       })
-  }
-
-  getProduct(query: {}){
-    return this._feathers.service('products').find({query: query})
-  }
-
-  getProductsForGame(gameId: string, limit: number, skip: number, sort: {active: string, direction: string} | null) {
-    let direction = -1
-    if (sort != null) {
-      if (sort.direction === 'ASC') {
-        direction = 1
-      }
-    return this._feathers
-      .service('products')
-      .find({
-        query: {
-          game_id: gameId,
-          $limit: limit, 
-          $skip: skip,
-          $sort: {
-            [sort.active]: direction
-          }
-        }
+      .then((data: any) => {
+        toReturn = data.data[0].name
       })
-    }
+
+    return toReturn
   }
 
-  getProductsForSet(setId: string, limit: number, skip: number, sort: {active: string, direction: string} | null) {
-    let direction = -1
-    if (sort != null) {
-      if (sort.direction === 'ASC') {
-        direction = 1
-      }
-    return this._feathers
-      .service('products')
-      .find({
-        query: {
-          set_id: setId,
-          $limit: limit, 
-          $skip: skip,
-          $sort: {
-            [sort.active]: direction
-          }
-        }
-      })
-    }
-  }
-
-  patchProduct(id: string, body: {}){
+  patchProduct(id: string, body: {}) {
+    //console.log(body)
     this._feathers.service('products').patch(id, body)
   }
   updateSellingStatus(id: string, storeId: string, enabled: boolean) {
@@ -114,4 +214,16 @@ export class DataService {
       [`store_status.${storeId}.buying.quantity`]: quantity
     })
   }
+}
+
+
+interface Query {
+  [key: string]: any; // Allow any additional MongoDB properties
+  set_id?: string;
+  game_id?: string;
+  $limit: number;
+  $sort: {
+    sort_number: number;
+    'external_id.tcgcsv_group_id': number;
+  };
 }

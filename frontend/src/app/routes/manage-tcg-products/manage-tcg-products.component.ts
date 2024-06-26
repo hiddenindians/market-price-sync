@@ -8,11 +8,11 @@ import { MatSelectChange, MatSelectModule } from '@angular/material/select'
 import { FormsModule } from '@angular/forms'
 import Papa from 'papaparse'
 import { SelectionChange } from '@angular/cdk/collections'
-import { MatSlideToggleChange } from '@angular/material/slide-toggle'
+import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
 import { MatInputModule } from '@angular/material/input'
 import { MatButtonModule } from '@angular/material/button'
 import { AuthService } from '../../services/auth/auth.service'
-
+import {MatCheckboxChange, MatCheckboxModule} from'@angular/material/checkbox'
 @Component({
   selector: 'app-manage-tcg-products',
   standalone: true,
@@ -24,7 +24,8 @@ import { AuthService } from '../../services/auth/auth.service'
     MatSortModule,
     MatPaginatorModule,
     MatInputModule,
-    MatButtonModule
+    MatButtonModule,
+    MatCheckboxModule
   ],
   templateUrl: './manage-tcg-products.component.html',
   styleUrl: './manage-tcg-products.component.scss'
@@ -48,23 +49,30 @@ export class ManageTCGProductsComponent implements OnInit {
   pageSize: number = 10
   pageIndex: number = 0
   totalLength: number = 0
-  defaultSort = { active: 'collector_number', direction: 'ASC' }
+  defaultSort = { active: 'sort_number', direction: 'ASC' }
   selectedGame!: string
   selectedSet!: string
   CAD: number = 1.38
-  userSubscription: any;
-  storeId: string = "";
+  userSubscription: any
+  storeId: string = ''
+  newOnlyForSet: boolean = false
+  newOnlyForGame: boolean = false
 
   constructor(private data: DataService, private auth: AuthService) {
-    this.userSubscription = this.auth.currentUser.subscribe((user:any)=>{
+    this.userSubscription = this.auth.currentUser.subscribe((user: any) => {
       this.storeId = user.user.store_id
     })
   }
+
   ngOnInit() {
     this.fetchGames(100000, this.pageIndex * this.pageSize, {
       active: 'external_id.tcgcsv_id',
       direction: 'ASC'
     })
+  }
+
+  ngOnDestroy() {
+    this.userSubscription.unsubscribe()
   }
 
   fetchGames(limit: number, skip: number, sort: { active: string; direction: string } | null) {
@@ -90,6 +98,8 @@ export class ManageTCGProductsComponent implements OnInit {
     setId?: string,
     gameId?: string
   ) {
+
+    if(sort && sort.direction != ""){
     if (setId && setId != '') {
       console.log('getting for set')
       this.data.getProductsForSet(setId, limit, skip, sort).then((data: any) => {
@@ -104,6 +114,7 @@ export class ManageTCGProductsComponent implements OnInit {
         console.log(this.products)
       })
     }
+  }
   }
 
   importCSV(event: Event) {
@@ -140,23 +151,20 @@ export class ManageTCGProductsComponent implements OnInit {
     await Promise.all(
       products.map(async (product: any) => {
         try {
-          const data = await this.data.getProduct({ 
-            [`store_status.${this.storeId}.pos_id`]: product['System ID'],
-          })
-
+          const data = await this.data.getProductByPOSId(product['System ID'], this.storeId)
           if (data.total === 1) {
+            //found by System ID
+            console.log('foundbysysid')
             const marketPrice = Object.keys(data.data[0].price.market_price)[0]
             const oldPrice = Number(product.MSRP)
             const newPrice = this.retailPrice(
               this.getExchangeRate(data.data[0].price.market_price[marketPrice])
             )
-
-            // Found by SystemId
             this.data.patchProduct(data.data[0]._id, {
-             // average_cost: product.avg_cost ? product.avg_cost : 0,
-             [`store_status.${this.storeId}.selling.enabled`]: true,
-             [`store_status.${this.storeId}.selling.quantity`]: product['Qty.']
-             });
+              // average_cost: product.avg_cost ? product.avg_cost : 0,
+              [`store_status.${this.storeId}.selling.enabled`]: true,
+              [`store_status.${this.storeId}.selling.quantity`]: product['Qty.']
+            })
 
             priceChanges.push({ ...product, new_price: newPrice })
 
@@ -165,28 +173,23 @@ export class ManageTCGProductsComponent implements OnInit {
             }
           } else {
             console.log('no match on sysID')
-            console.log(product.Description)
+            let name = (product.Item) ? product.Item : product.Description
 
             const nameData = await this.data.getProduct({
-              name: product.Item ? product.Item : product.Description
+              name: name
             })
-
             if (nameData.total !== 0) {
-              console.log(nameData.data[0])
+              // Found by name
               const marketPrice = Object.keys(nameData.data[0].price.market_price)[0]
               const newPrice = this.retailPrice(
                 this.getExchangeRate(nameData.data[0].price.market_price[marketPrice])
               )
               const oldPrice = Number(product.MSRP)
 
-              // Found by name
-              this.data.patchProduct(nameData.data[0]._id, 
-                
-                
-                {
+              this.data.patchProduct(nameData.data[0]._id, {
                 [`store_status.${this.storeId}.pos_id`]: product['System ID'],
                 [`store_status.${this.storeId}.selling.enabled`]: true,
-             [`store_status.${this.storeId}.selling.quantity`]: product['Qty.']
+                [`store_status.${this.storeId}.selling.quantity`]: product['Qty.']
               })
 
               if (Math.abs(newPrice - oldPrice) > 0) {
@@ -222,7 +225,56 @@ export class ManageTCGProductsComponent implements OnInit {
     pom.setAttribute('download', filename)
     pom.click()
   }
-  exportCSV() {}
+
+  async exportSellingBySet() {
+    const data = await this.data.getSellingForSet(this.selectedSet, this.storeId, this.newOnlyForSet);
+    if (data.total !== 0) {
+      const jsonArray = await this.processProducts(data.data, this.storeId);
+      const csv = Papa.unparse(jsonArray);
+      this.downloadBlob(csv, 'tcg_prices_set.csv', 'text/csv;charset=utf-8');
+    }
+  }
+
+  async exportSellingByGame() {
+    const data = await this.data.getSellingForGame(this.selectedGame, this.storeId, this.newOnlyForGame);
+    if (data.total !== 0) {
+      const jsonArray = await this.processProducts(data.data, this.storeId);
+      const csv = Papa.unparse(jsonArray);
+      this.downloadBlob(csv, 'tcg_prices_game.csv', 'text/csv;charset=utf-8');
+    }
+  }
+  
+
+  async processProducts(products: any[], storeId: string) {
+    return Promise.all(
+      products.map(async (product: any) => {
+        let object: any = {}
+        const marketPriceKey = Object.keys(product.price.market_price)[0];
+        const marketPrice = product.price.market_price[marketPriceKey];
+  
+        object.description = product.name;
+        object.quantity = product.store_status[this.storeId].selling.quantity;
+        object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)));
+        object.msrp = this.round(this.retailPrice(this.getExchangeRate(marketPrice)));
+        object.online_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)));
+        object.category = 'Trading Card Games';
+  
+        object.subcategory1 = await this.data.getGameNameFromId(product.game_id);
+        object.subcategory2 = product.type;
+  
+        if (product.type === 'Single Cards') {
+          object.subcategory3 = await this.data.getSetNameFromId(product.set_id);
+        }
+  
+        object.system_id = product.store_status[storeId].pos_id || '';
+        object.enabled_on_eCom = 'yes';
+        object.image = product.image_url.slice(-15);
+        object.image_URL = product.image_url;
+  
+        return object;
+      })
+    );
+  }
 
   onPageChange(event: PageEvent) {
     console.log(event)
@@ -239,9 +291,17 @@ export class ManageTCGProductsComponent implements OnInit {
     }
   }
 
-  onSortChange(event: { active: string; direction: string } | null) {
+  onSortChange(event: { active: string; direction: string } |null) {
     console.log(event)
-    this.fetchProducts(this.pageSize, this.pageIndex * this.pageSize, event)
+    if(this.selectedSet){
+     if(event) {this.defaultSort = event}
+    this.fetchProducts(this.pageSize, this.pageIndex * this.pageSize, event, this.selectedSet)
+    } else {
+      if(event) {this.defaultSort = event}
+      this.fetchProducts(this.pageSize, this.pageIndex * this.pageSize, event, undefined, this.selectedGame)
+
+    }
+
   }
 
   onGameSelectionChange(event: MatSelectChange) {
@@ -273,4 +333,20 @@ export class ManageTCGProductsComponent implements OnInit {
   onSellQuantityChange(event: { id: string; storeId: string; value: number }) {
     this.data.updatSellingQuantity(event.id, event.storeId, event.value)
   }
+
+  onNewOnlyToggle(event: MatCheckboxChange, type: string) {
+    if (event.checked == true) {
+      if (type == 'set') {
+        this.newOnlyForSet = true
+        console.log(this.newOnlyForSet)
+      } else {
+        this.newOnlyForGame = true
+        console.log(this.newOnlyForGame)
+      }
+    }
+  }
+
+  round(value: number) {
+    return Number(Math.round(Number(value+'e'+2))+'e-'+2);
+   }
 }
