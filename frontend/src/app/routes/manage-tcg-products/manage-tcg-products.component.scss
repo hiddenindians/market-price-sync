@@ -1,27 +1,40 @@
-.game-set-select-fields {
-    display: flex;
-    align-items: flex-start;
-  }
+/* Container styling */
+.game-set-select-container {
+  margin: 20px; /* Added margin around the container */
+}
 
-  .game-set-select-container mat-form-field + mat-form-field {
-    margin-left: 8px;
-  }
-  
-  .game-set-select-container mat-form-field {
-    width: 220px;
-  }
-  
-  .game-set-select-container form {
-    margin-bottom: 20px;
-  }
-  
-  .game-set-select-container form > * {
-    margin: 12px 0;
-  }
-  
-  .game-set-select-container .mat-radio-button {
-    margin: 0 12px;
-  }
-  
- 
-  
+/* Toolbar styling */
+.mat-toolbar {
+  margin-bottom: 20px; /* Added margin below the toolbar */
+}
+
+/* Flexbox container for form fields */
+.game-set-select-fields {
+  display: flex; /* Flexbox for horizontal alignment */
+  align-items: center; /* Center items vertically */
+  justify-content: space-between; /* Space out items evenly */
+  margin-bottom: 20px; /* Added margin below form fields */
+}
+
+/* Form field styling */
+.game-set-select-fields mat-form-field {
+  flex: 1; /* Make form fields take equal space */
+  margin-right: 16px; /* Added margin to the right of form fields */
+}
+
+/* Flexbox container for actions */
+.form-actions {
+  display: flex; /* Flexbox for horizontal alignment */
+  align-items: center; /* Center items vertically */
+  margin-bottom: 20px; /* Added margin below action buttons */
+}
+
+/* Button styling */
+.form-actions button {
+  margin-right: 16px; /* Added margin to the right of buttons */
+}
+
+/* Checkbox styling */
+.form-actions mat-checkbox {
+  margin-left: 16px; /* Added margin to the left of checkboxes */
+}

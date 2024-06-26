@@ -119,7 +119,8 @@ export const processProductsAndPrices = async (context: HookContext) => {
           value: foundProduct.extendedData[i].value
         }
         if (foundProduct.extendedData[i].name === 'Number') {
-          newProduct.collector_number = parseNumberOrString(foundProduct.extendedData[i].value)
+          newProduct.collector_number = foundProduct.extendedData[i].value
+          newProduct.sort_number = parseNumberOrString(foundProduct.extendedData[i].value)
         }
         if (foundProduct.extendedData[i].name === 'Rarity') {
           newProduct.rarity = foundProduct.extendedData[i].value
@@ -517,6 +518,7 @@ interface NewProduct {
   upc?: string
   text?: string
   collector_number?: any
+  sort_number?: any
   rarity?: string
   sub_type?: string
   power?: string

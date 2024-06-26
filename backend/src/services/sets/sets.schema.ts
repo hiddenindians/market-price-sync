@@ -73,6 +73,7 @@ export const setsQueryProperties = Type.Pick(setsSchema, ['_id', 'name', 'enable
 export const setsQuerySchema = Type.Intersect(
   [   
     Type.Object({
+          '_id': queryProperty(ObjectIdSchema()),
           'game_id': queryProperty(ObjectIdSchema()),
           'external_id.tcgcsv_id': queryProperty(Type.Number()),
           'name': queryProperty(Type.String()),

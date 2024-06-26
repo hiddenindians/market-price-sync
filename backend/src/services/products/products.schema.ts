@@ -81,6 +81,7 @@ export const productsSchema = Type.Object(
     text: Type.Optional(Type.String()),
     rarity: Type.Optional(Type.String()),
     collector_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
+    sort_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
     extended_data: Type.Optional(
       Type.Array(
         Type.Object({
@@ -210,7 +211,7 @@ export const productsSchema = Type.Object(
             quantity: Type.Optional(Type.Number({ default: 0 }))
           }),
           pos_id: Type.Optional(Type.String())
-        }),
+        })
       )
     )
   },
@@ -241,6 +242,7 @@ export const productsDataSchema = Type.Pick(
     'text',
     'rarity',
     'collector_number',
+    'sort_number',
     'sub_type',
     'power',
     'toughness',
@@ -267,7 +269,6 @@ export const productsDataSchema = Type.Pick(
     'lore_value',
     'price',
     'average_cost',
-    'pos_id',
     // 'buying',
     // 'selling',
     'monster_type',
@@ -382,9 +383,9 @@ export const productsQueryProperties = Type.Pick(productsSchema, [
   'game_id',
   'external_id',
   'set_id',
-  //'buying',
   'name',
-])
+  'sort_number'
+  ])
 // export const productsQuerySchema = Type.Object(
 //   {
 //     _id: queryProperty(ObjectIdSchema()),
@@ -407,22 +408,43 @@ export const productsQueryProperties = Type.Pick(productsSchema, [
 // )
 export const productsQuerySchema = Type.Intersect(
   [
-    querySyntax(productsQueryProperties, {
-      name: { $regex: Type.String(), $options: Type.String() }
-    }),
     Type.Object(
       {
-        'store_status.store_id': queryProperty(Type.Boolean()),
-        'store_status.pos_id':queryProperty(Type.String()),
-        'store_status.selling.enabled': queryProperty(Type.Boolean()),
-        'store_status.selling.quantity': queryProperty(Type.Number()),
-        'external_id.tcgcsv_id': queryProperty(Type.Number())
-      },
-      { additionalProperties: false }
-    )
+        'name': queryProperty(Type.String()),
+        'store_status': Type.Optional(
+          Type.Record(
+            Type.String(),
+            Type.Object({
+              pos_id: queryProperty(Type.String()),
+              selling: Type.Optional(
+                Type.Object({
+                  enabled: queryProperty(Type.Boolean()),
+                  quantity: queryProperty(Type.Number())
+                })
+              ),
+              buying: Type.Optional(
+                Type.Object({
+                  enabled: queryProperty(Type.Boolean()),
+                  quantity: queryProperty(Type.Number())
+                })
+              )
+            })
+          )
+        ),
+        'external_id.tcgcsv_id': queryProperty(Type.Number()),
+        'external_id.tcgcsv_group_id':queryProperty(Type.Number()),
+        'game_id': queryProperty(ObjectIdSchema()),
+        'set_id': queryProperty(ObjectIdSchema()),
+        $sort:Type.Optional(Type.Object({
+          'external_id.tcgcsv_group_id': Type.Optional(Type.Number()),
+          'sort_number': Type.Optional(Type.Number())
+        })),
+        $limit: Type.Optional(Type.Number()),
+        $skip: Type.Optional(Type.Number())   
+      })
   ],
   {
-    additionalProperties: false
+    additionalProperties: true
   }
 )
 

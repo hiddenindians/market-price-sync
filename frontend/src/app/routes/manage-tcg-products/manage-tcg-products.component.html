@@ -1,29 +1,51 @@
 <div class="game-set-select-container">
-<form>
-    <div class="game-set-select-fields">
-    <mat-form-field>
-        <mat-label>Select Game</mat-label>
-        <mat-select [(ngModel)]="selectedGame" (selectionChange)=(onGameSelectionChange($event)) name="game">
-            @for (game of games; track game){
-                <mat-option [value]="game._id">{{game.name}}</mat-option>
-            }
-        </mat-select>
-    </mat-form-field>
-    <mat-form-field>
-        <mat-label>Select Set</mat-label>
-        <mat-select [(ngModel)]="selectedSet" (selectionChange)=(onSetSelectionChange($event)) name="set">
-            @for (set of sets; track set){
-                <mat-option [value]="set._id">{{set.name}}</mat-option>
-            }
-        </mat-select>
-    </mat-form-field>
-    <div class="px-1 py-1">
-        <button type="button" mat-raised-button (click)="fileInput.click()">Upload Lightspeed CSV</button>
+    <!-- Added a toolbar for a header -->
+    
+    <form>
+      <!-- Move buttons and checkboxes above the dropdowns -->
+      <div class="form-actions">
+        <!-- Upload CSV button -->
+        <button type="button" mat-raised-button color="accent" (click)="fileInput.click()">Upload Lightspeed CSV</button>
         <input hidden (change)="importCSV($event)" #fileInput type="file" id="file">
-        </div>
-    </div>
-
-</form>
-</div>
-<app-data-table [totalLength]="totalLength"  [data]="products" [displayedColumns]="displayedColumns"
-    (sortChanged)="onSortChange($event)" (buyToggle)="onBuyToggle($event)" (sellToggle)="onSellToggle($event)" (page)="onPageChange($event)" (buyQuantity)="onBuyQuantityChange($event)" (sellQuantity)="onSellQuantityChange($event)"></app-data-table>
+  
+        <!-- Download Set CSV button -->
+        <button type="button" mat-raised-button color="primary" (click)="exportSellingBySet()">Download Set Selling Enabled CSV</button>
+        <mat-checkbox #newOnlyForSet (change)="onNewOnlyToggle($event, 'set')">New Products Only?</mat-checkbox>
+  
+        <!-- Download Game CSV button -->
+        <button type="button" mat-raised-button color="primary" (click)="exportSellingByGame()">Download Game Selling Enabled CSV</button>
+        <mat-checkbox #newOnlyForGame (change)="onNewOnlyToggle($event, 'game')">New Products Only?</mat-checkbox>
+      </div>
+  
+      <div class="game-set-select-fields">
+        <!-- Game selection dropdown -->
+        <mat-form-field appearance="fill">
+          <mat-label>Select Game</mat-label>
+          <mat-select [(ngModel)]="selectedGame" (selectionChange)=(onGameSelectionChange($event)) name="game">
+            <!-- Retained @for syntax for games -->
+            @for (game of games; track game){
+              <mat-option [value]="game._id">{{ game.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+  
+        <!-- Set selection dropdown -->
+        <mat-form-field appearance="fill">
+          <mat-label>Select Set</mat-label>
+          <mat-select [(ngModel)]="selectedSet" (selectionChange)=(onSetSelectionChange($event)) name="set">
+            <!-- Retained @for syntax for sets -->
+            @for (set of sets; track set){
+              <mat-option [value]="set._id">{{ set.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </form>
+  
+    <!-- Data table component -->
+    <app-data-table [totalLength]="totalLength" [data]="products" [displayedColumns]="displayedColumns"
+      (sortChanged)="onSortChange($event)" (buyToggle)="onBuyToggle($event)" (sellToggle)="onSellToggle($event)"
+      (page)="onPageChange($event)" (buyQuantity)="onBuyQuantityChange($event)" (sellQuantity)="onSellQuantityChange($event)">
+    </app-data-table>
+  </div>
+  
