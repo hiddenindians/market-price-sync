@@ -39,20 +39,16 @@ export class AuthService {
 
   return from(this._feathers.service('users').create(newUser)as Promise <User>).pipe(
       switchMap((user: User) => {
-        console.log('User created:', user);
         this.logIn(newUser)
         return from(this._feathers.service('stores').create({ name: userData.storeName, admin_id: user._id }) as Promise<Store>).pipe(
           switchMap((store: Store) => {
-            console.log('Store created:', store);
             return from(
               this._feathers.service('users').patch(user._id, { store_id: store._id })).pipe(
               map(() => {
-                console.log('User patched with store_id:', store._id);
                 this.setAuth(user);
                 return user;
               }),
               catchError((error)=> {
-                console.error('Error patching user:', error);
                 throw error;
               })
             );
@@ -73,11 +69,9 @@ export class AuthService {
         accessToken: window.localStorage.getItem('feathers-jwt') || null
       }).then(
         (data: User) => {this.setAuth(data)
-          console.log(data)
         }
       ).catch((err: any) => {
         this.logout()
-        console.log('erre')
       })
     
   }

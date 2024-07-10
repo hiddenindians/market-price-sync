@@ -27,15 +27,14 @@ import { Observable, map, shareReplay } from 'rxjs'
   styleUrl: './app.component.scss'
 })
 export class AppComponent {
-  title = 'frontend'
-
-  constructor(private auth: AuthService) {}
+  title = 'Market Price Sync'
+  private auth = inject(AuthService)
+  private breakpointObserver = inject(BreakpointObserver);
 
   ngOnInit() {
     this.auth.reauthenticate()
   }
 
-  private breakpointObserver = inject(BreakpointObserver);
 
   isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
     .pipe(

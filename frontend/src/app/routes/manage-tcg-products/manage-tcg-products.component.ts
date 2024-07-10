@@ -59,12 +59,17 @@ export class ManageTCGProductsComponent implements OnInit {
   newOnlyForGame: boolean = false
 
   constructor(private data: DataService, private auth: AuthService) {
-    this.userSubscription = this.auth.currentUser.subscribe((user: any) => {
-      this.storeId = user.user.store_id
-    })
+    
   }
 
   ngOnInit() {
+    this.userSubscription = this.auth.currentUser.subscribe((user: any) => {
+      console.log(user.user)
+      this.storeId = user.user.store_id
+      console.log(this.storeId)
+    })
+
+
     this.fetchGames(100000, this.pageIndex * this.pageSize, {
       active: 'external_id.tcgcsv_id',
       direction: 'ASC'
@@ -87,7 +92,6 @@ export class ManageTCGProductsComponent implements OnInit {
   fetchSets(gameId: string) {
     this.data.getSetsForGame(gameId).then((data: any) => {
       this.sets = data.data
-      console.log(this.sets)
     })
   }
 
@@ -101,17 +105,14 @@ export class ManageTCGProductsComponent implements OnInit {
 
     if(sort && sort.direction != ""){
     if (setId && setId != '') {
-      console.log('getting for set')
       this.data.getProductsForSet(setId, limit, skip, sort).then((data: any) => {
         this.products = data.data
         this.totalLength = data.total
       })
     } else if (gameId && gameId != '') {
-      console.log('getting for game')
       this.data.getProductsForGame(gameId, limit, skip, sort).then((data: any) => {
         this.products = data.data
         this.totalLength = data.total
-        console.log(this.products)
       })
     }
   }
@@ -123,6 +124,7 @@ export class ManageTCGProductsComponent implements OnInit {
     if (fileList) {
       Papa.parse(fileList[0], {
         header: true,
+        skipEmptyLines:true,
         complete: (results) => this.processCSV(results)
       })
     }
@@ -148,6 +150,8 @@ export class ManageTCGProductsComponent implements OnInit {
     const largeChanges: {}[] = []
     const noMatch: {}[] = []
 
+    console.log(products)
+
     await Promise.all(
       products.map(async (product: any) => {
         try {
@@ -160,12 +164,13 @@ export class ManageTCGProductsComponent implements OnInit {
             const newPrice = this.retailPrice(
               this.getExchangeRate(data.data[0].price.market_price[marketPrice])
             )
+            if(product['Qty.']){
             this.data.patchProduct(data.data[0]._id, {
               // average_cost: product.avg_cost ? product.avg_cost : 0,
               [`store_status.${this.storeId}.selling.enabled`]: true,
               [`store_status.${this.storeId}.selling.quantity`]: product['Qty.']
             })
-
+          }
             priceChanges.push({ ...product, new_price: newPrice })
 
             if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
@@ -185,12 +190,14 @@ export class ManageTCGProductsComponent implements OnInit {
                 this.getExchangeRate(nameData.data[0].price.market_price[marketPrice])
               )
               const oldPrice = Number(product.MSRP)
-
-              this.data.patchProduct(nameData.data[0]._id, {
+              let patchBody = {
                 [`store_status.${this.storeId}.pos_id`]: product['System ID'],
                 [`store_status.${this.storeId}.selling.enabled`]: true,
-                [`store_status.${this.storeId}.selling.quantity`]: product['Qty.']
-              })
+              }
+              if (product['Qty']){
+                patchBody[`store_status.${this.storeId}.selling.quantity`] = product['Qty.']
+              }
+              this.data.patchProduct(nameData.data[0]._id, patchBody)
 
               if (Math.abs(newPrice - oldPrice) > 0) {
                 priceChanges.push({ ...product, new_price: newPrice })
@@ -277,14 +284,11 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   onPageChange(event: PageEvent) {
-    console.log(event)
     this.pageSize = event.pageSize
     this.pageIndex = event.pageIndex
     const limit = event.pageSize
     const skip = event.pageIndex * event.pageSize
     if (this.selectedSet) {
-      console.log("think there's a set")
-      console.log(this.selectedSet)
       this.fetchProducts(limit, skip, this.defaultSort, this.selectedSet, '')
     } else {
       this.fetchProducts(limit, skip, this.defaultSort, '', this.selectedGame)
@@ -292,7 +296,6 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   onSortChange(event: { active: string; direction: string } |null) {
-    console.log(event)
     if(this.selectedSet){
      if(event) {this.defaultSort = event}
     this.fetchProducts(this.pageSize, this.pageIndex * this.pageSize, event, this.selectedSet)
@@ -312,17 +315,14 @@ export class ManageTCGProductsComponent implements OnInit {
 
   onSetSelectionChange(event: MatSelectChange) {
     this.selectedSet = event.value
-    console.log('Page ' + this.pageSize)
     this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, event.value, '')
   }
 
   onSellToggle(event: { id: string; storeId: string; value: boolean }) {
-    console.log(event)
     this.data.updateSellingStatus(event.id, event.storeId, event.value)
   }
 
   onBuyToggle(event: { id: string; storeId: string; value: boolean }) {
-    console.log(event)
     this.data.updateBuyingStatus(event.id, event.storeId, event.value)
   }
 
@@ -338,10 +338,8 @@ export class ManageTCGProductsComponent implements OnInit {
     if (event.checked == true) {
       if (type == 'set') {
         this.newOnlyForSet = true
-        console.log(this.newOnlyForSet)
       } else {
         this.newOnlyForGame = true
-        console.log(this.newOnlyForGame)
       }
     }
   }

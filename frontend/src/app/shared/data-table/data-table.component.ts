@@ -71,12 +71,8 @@ export class DataTableComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges) {
     if (changes['data']) {
       this.dataSource.data = this.data
-
-      console.log('Data source updated:', this.dataSource.data) // Verify data is assigned
     }
-    if (changes['totalLength'] && this.paginator) {
-      console.log('Paginator length set to:', this.paginator.length) // Verify paginator length
-    }
+   
   }
   getNestedValue(element: any, path: string): any {
     return path.split('.').reduce((acc, part) => acc && acc[part], element)

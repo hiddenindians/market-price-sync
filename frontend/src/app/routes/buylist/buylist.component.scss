@@ -1,0 +1,22 @@
+.buylist {
+    .products {
+      display: flex;
+      flex-wrap: wrap;
+      .product {
+        max-width: 250px;
+        margin: 10px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        img {
+          max-width: 150px;
+          margin: 0 auto
+        }
+      }
+    }
+    .cart {
+      margin-top: 20px;
+      .cart-item {
+        margin-bottom: 10px;
+      }
+    }
+  }

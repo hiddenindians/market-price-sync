@@ -39,9 +39,10 @@ export class DataService {
   }
 
   getProduct(query: {}) {
-    console.log(query)
     return this._feathers.service('products').find({ query: query })
   }
+
+  
 
   getProductByPOSId(posId: string, storeId: string) {
     return this._feathers.service('products').find({
@@ -101,8 +102,7 @@ export class DataService {
       if (sort.active === 'market_price'){
 
         sortBody = {
-          'price.market_price.Normal': direction,
-          'price.market_price.Foil': direction,
+          'price.market_price': direction,
         }
       }
 
@@ -132,7 +132,6 @@ export class DataService {
     if (newProductsOnly) {
       query[`store_status.${storeId}.pos_id`] = {$exists: false};  
     }
-    console.log(query)
     return this._feathers.service('products').find({
       query: query
     })
@@ -188,7 +187,6 @@ export class DataService {
   }
 
   patchProduct(id: string, body: {}) {
-    //console.log(body)
     this._feathers.service('products').patch(id, body)
   }
   updateSellingStatus(id: string, storeId: string, enabled: boolean) {
@@ -213,6 +211,10 @@ export class DataService {
     this._feathers.service('products').patch(id, {
       [`store_status.${storeId}.buying.quantity`]: quantity
     })
+  }
+
+  createOrder(order: any) {
+    
   }
 }
 
