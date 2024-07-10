@@ -4,7 +4,6 @@ import { authenticate } from '@feathersjs/authentication'
 import type { Application } from '../../declarations'
 import { FetchProductsAndPricesService, getOptions } from './fetch-products-and-prices.class'
 import { fetchProductsAndPricesPath, fetchProductsAndPricesMethods } from './fetch-products-and-prices.shared'
-import { processProductsAndPrices } from '../../hooks/process-products-and-prices'
 
 export * from './fetch-products-and-prices.class'
 
@@ -26,7 +25,7 @@ export const fetchProductsAndPrices = (app: Application) => {
       all: [],
       find: [],
       get: [],
-      create: [processProductsAndPrices],
+      create: [],
       patch: [],
       remove: []
     },

@@ -4,6 +4,7 @@ import { DashboardComponent } from './routes/dashboard/dashboard.component';
 import AuthComponent from './routes/auth/auth.component';
 import { InventoryComponent } from './routes/inventory/inventory.component';
 import { ManageTCGProductsComponent } from './routes/manage-tcg-products/manage-tcg-products.component';
+import { BuylistComponent } from './routes/buylist/buylist.component';
 
 export const routes: Routes = [
     { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
@@ -24,6 +25,11 @@ export const routes: Routes = [
     {
       path: 'inventory',
       component: InventoryComponent, 
+      canActivate: [authGuard]
+    },
+    {
+      path: 'buylist',
+      component: BuylistComponent,
       canActivate: [authGuard]
     },
     {

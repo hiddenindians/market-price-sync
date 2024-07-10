@@ -33,6 +33,11 @@ export const productsSchema = Type.Object(
     //   quantity: Type.Optional(Type.Number({ default: 0 }))
     // }),
     last_updated: Type.Number(),
+    market_price: Type.Optional(Type.Number()),
+    low_price: Type.Optional(Type.Number()),
+    mid_price: Type.Optional(Type.Number()),
+    high_price: Type.Optional(Type.Number()),
+    direct_low_price: Type.Optional(Type.Number()),
     price: Type.Object({
       market_price: Type.Optional(
         Type.Object({
@@ -435,9 +440,12 @@ export const productsQuerySchema = Type.Intersect(
         'external_id.tcgcsv_group_id':queryProperty(Type.Number()),
         'game_id': queryProperty(ObjectIdSchema()),
         'set_id': queryProperty(ObjectIdSchema()),
-        $sort:Type.Optional(Type.Object({
+        $sort:
+        Type.Optional(Type.Object({
           'external_id.tcgcsv_group_id': Type.Optional(Type.Number()),
-          'sort_number': Type.Optional(Type.Number())
+          'sort_number': Type.Optional(Type.Number()),
+          'price.market_price.Normal': Type.Optional(Type.Number()), 
+          'price.market_price.Foil': Type.Optional(Type.Number()), 
         })),
         $limit: Type.Optional(Type.Number()),
         $skip: Type.Optional(Type.Number())   
