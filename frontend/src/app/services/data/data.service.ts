@@ -118,6 +118,18 @@ export class DataService {
     }
   }
 
+  getProductByEComIDs(id: string, variantId: string){
+    let query: Query = {
+      ecom_pid: id,
+      ecom_vid: variantId,
+      $limit: 10000,
+    }
+
+    return this._feathers.service('products').find({
+      query: query
+    })
+  }
+
   getSellingForSet(setId: string, storeId: string, newProductsOnly: boolean) {
     let query: Query = {
       set_id: setId,
@@ -224,7 +236,7 @@ interface Query {
   set_id?: string;
   game_id?: string;
   $limit: number;
-  $sort: {
+  $sort?: {
     sort_number: number;
     'external_id.tcgcsv_group_id': number;
   };

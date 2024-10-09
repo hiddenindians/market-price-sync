@@ -14,31 +14,11 @@ export const pricesSchema = Type.Object(
     _id: ObjectIdSchema(),
     product_id: ObjectIdSchema(),
     timestamp: Type.Number(),
-    market_price: Type.Object({
-      normal: Type.Optional(Type.Number()),
-      foil: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number())
-    }),
-    low_price: Type.Object({
-      normal: Type.Optional(Type.Number()),
-      foil: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number())
-    }),
-    mid_price: Type.Object({
-      normal: Type.Optional(Type.Number()),
-      foil: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number())
-    }),
-    high_price: Type.Object({
-      normal: Type.Optional(Type.Number()),
-      foil: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number())
-    }),
-    direct_low_price: Type.Object({
-      normal: Type.Optional(Type.Number()),
-      foil: Type.Optional(Type.Number()),
-      reverse_foil: Type.Optional(Type.Number())   
-    })
+    market_price: Type.Optional(Type.Number()),
+    low_price: Type.Optional(Type.Number()),
+    mid_price: Type.Optional(Type.Number()),
+    high_price: Type.Optional(Type.Number()),
+    direct_low_price: Type.Optional(Type.Number()),
   },
   { $id: 'Prices', additionalProperties: false }
 )

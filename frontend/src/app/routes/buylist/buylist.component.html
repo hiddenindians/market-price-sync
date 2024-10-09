@@ -22,7 +22,7 @@
       <div class="cart-item">
         <h3>{{ item.name }}</h3>
         <p>Quantity: {{ item.quantity }}</p>
-        <p>Price: {{ item.buylist_price }}</p>
+        <p>Price: {{ item.market_price * .6 }}</p>
       </div>
     }
       <h3>Total: {{ total }}</h3>
