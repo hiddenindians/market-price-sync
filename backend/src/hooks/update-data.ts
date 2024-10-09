@@ -56,7 +56,9 @@ const fetchSets = async (context: HookContext) => {
     const setPromises = groupsData.flatMap(({ game, groups }) =>
       groups.map(async (group: any) => {
         const existingSet = await context.app.service('sets').find({
-          query: { game_id: game._id, name: group.name }
+          query: { game_id: game._id, 
+            ['external_id.tcgcsv_id']: group.groupId,
+          }
         })
 
         if (existingSet.total === 0) {
@@ -245,29 +247,18 @@ export const processProductsAndPrices = async (context: HookContext) => {
           const settings = settingsData.data[0] || { tcgcsv_last_updated: 0 }
 
           const newPrice: Price = {
-            market_price: {
-              [price.subTypeName]: price.marketPrice ? Number(price.marketPrice) : -1
-            },
-            low_price: {
-              [price.subTypeName]: price.lowPrice ? Number(price.lowPrice) : -1
-            },
-            mid_price: {
-              [price.subTypeName]: price.midPrice ? Number(price.lowPrice) : -1
-            },
-            high_price: {
-              [price.subTypeName]: price.highPrice ? Number(price.lowPrice) : -1
-            },
-            direct_low_price: {
-              [price.subTypeName]: price.directLowPrice ? Number(price.lowPrice) : -1
-            },
+            market_price: price.marketPrice ? Number(price.marketPrice) : -1,
+            low_price: price.lowPrice ? Number(price.lowPrice) : -1,
+            mid_price: price.midPrice ? Number(price.midPrice) : -1,
+            high_price: price.highPrice ? Number(price.highPrice) : -1,
+            direct_low_price: price.directLowPrice ? Number(price.directLowPrice) : -1,
             timestamp: Date.now()
-            // product_id: existingProductData.total > 0 ? existingProductData.data[0]._id : {}
           }
 
           if (existingProductData.total > 0) {
             const existingProduct = existingProductData.data[0] as Products
 
-            if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
+         //   if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
               //  console.log('updating price')
               await context.app
                 .service('prices')
@@ -275,14 +266,23 @@ export const processProductsAndPrices = async (context: HookContext) => {
               var _id = existingProduct._id as string
               await context.app.service('products').patch(_id, {
                 last_updated: newProduct.last_updated,
-                price: newPrice
+                market_price: newPrice.market_price,
+                low_price: newPrice.low_price,
+                high_price: newPrice.high_price,
+                mid_price: newPrice.mid_price,
+                direct_low_price: newPrice.direct_low_price,
               })
-            }
+          //  }
           } else if (existingProductData.total > 1) {
             console.log('found too many')
           } else {
             //   console.log('no match')
-            newProduct.price = { ...newPrice }
+            newProduct.market_price = newPrice.market_price
+            newProduct.low_price = newPrice.low_price
+            newProduct.high_price = newPrice.high_price
+            newProduct.mid_price = newPrice.mid_price
+            newProduct.direct_low_price = newPrice.direct_low_price
+
             await context.app
               .service('products')
               .create(newProduct)
@@ -558,34 +558,12 @@ interface NewProduct {
   type: string
   last_updated: number
   _id: string
-  price: {
-    market_price: {
-      foil?: number
-      normal?: number
-      reverse_foil?: number
-    }
-    low_price: {
-      foil?: number
-      normal?: number
-      reverse_foil?: number
-    }
-    mid_price: {
-      foil?: number
-      normal?: number
-      reverse_foil?: number
-    }
-    high_price: {
-      foil?: number
-      normal?: number
-      reverse_foil?: number
-    }
-    direct_low_price: {
-      foil?: number
-      normal?: number
-      reverse_foil?: number
-    }
-    timestamp: number
-  }
+    market_price: number
+    low_price: number
+    mid_price: number 
+    high_price: number
+    direct_low_price: number
+  
   attack?: number
   defense?: number
   monster_type?: string
@@ -651,31 +629,11 @@ interface NewProduct {
 
 interface Price {
   product_id?: string | {}
-  market_price: {
-    foil?: number
-    normal?: number
-    reverse_foil?: number
-  }
-  low_price: {
-    foil?: number
-    normal?: number
-    reverse_foil?: number
-  }
-  mid_price: {
-    foil?: number
-    normal?: number
-    reverse_foil?: number
-  }
-  high_price: {
-    foil?: number
-    normal?: number
-    reverse_foil?: number
-  }
-  direct_low_price: {
-    foil?: number
-    normal?: number
-    reverse_foil?: number
-  }
+  market_price: number
+  low_price: number
+  mid_price: number 
+  high_price: number
+  direct_low_price: number
   timestamp: number
 }
 

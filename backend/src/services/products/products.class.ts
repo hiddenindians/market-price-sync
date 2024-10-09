@@ -18,36 +18,36 @@ export class ProductsService<ServiceParams extends Params = ProductsParams> exte
   ProductsParams,
   ProductsPatch
 > {
-  async find(params?: ProductsParams): Promise<any> {
-    const { query } = params || {};
-    const { $sort, ...restQuery } = query || {};
+  // async find(params?: ProductsParams): Promise<any> {
+  //   const { query } = params || {};
+  //   const { $sort, ...restQuery } = query || {};
 
-    if ($sort && Object.keys($sort).some(key => key.startsWith('price.market_price'))) {
-      const sortKey = Object.keys($sort).find(key => key.startsWith('price.market_price'))!;
-      const sortDirection = ($sort as { [key: string]: number })[sortKey] === 1 ? 1 : -1;
-      console.log(sortKey)
-      // Fetch products without sorting
-      const products = await app.service('products').find({query: restQuery})
-      const total = products.total
-      const productArray = products.data
+  //   if ($sort && Object.keys($sort).some(key => key.startsWith('price.market_price'))) {
+  //     const sortKey = Object.keys($sort).find(key => key.startsWith('price.market_price'))!;
+  //     const sortDirection = ($sort as { [key: string]: number })[sortKey] === 1 ? 1 : -1;
+  //     console.log(sortKey)
+  //     // Fetch products without sorting
+  //     const products = await app.service('products').find({query: restQuery})
+  //     const total = products.total
+  //     const productArray = products.data
 
-      // Custom sorting logic
-      productArray.sort((a: any, b: any) => {
-        const aValue = Math.min(...Object.values(a.price.market_price || {}).map(Number));
-        const bValue = Math.min(...Object.values(b.price.market_price || {}).map(Number));
-        return (aValue - bValue) * sortDirection;
-      });
+  //     // Custom sorting logic
+  //     productArray.sort((a: any, b: any) => {
+  //       const aValue = Math.min(...Object.values(a.price.market_price || {}).map(Number));
+  //       const bValue = Math.min(...Object.values(b.price.market_price || {}).map(Number));
+  //       return (aValue - bValue) * sortDirection;
+  //     });
 
-      return {
-        total: products.total,
-        limit: params?.query?.$limit || productArray.length,
-        skip: params?.query?.$skip || 0,
-        data: productArray.slice(params?.query?.$skip || 0, (params?.query?.$skip || 0) + (params?.query?.$limit || productArray.length))
-      };
-    }
+  //     return {
+  //       total: products.total,
+  //       limit: params?.query?.$limit || productArray.length,
+  //       skip: params?.query?.$skip || 0,
+  //       data: productArray.slice(params?.query?.$skip || 0, (params?.query?.$skip || 0) + (params?.query?.$limit || productArray.length))
+  //     };
+  //   }
 
-    return super.find(params);
-  }
+  //   return super.find(params);
+  // }
 
   }
 

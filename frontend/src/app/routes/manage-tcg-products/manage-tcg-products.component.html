@@ -5,9 +5,11 @@
       <!-- Move buttons and checkboxes above the dropdowns -->
       <div class="form-actions">
         <!-- Upload CSV button -->
-        <button type="button" mat-raised-button color="accent" (click)="fileInput.click()">Upload Lightspeed CSV</button>
-        <input hidden (change)="importCSV($event)" #fileInput type="file" id="file">
-  
+        <button type="button" mat-raised-button color="accent" (click)="fileInput.click()">Upload Lightspeed (R-Series) CSV</button>
+        <input hidden (change)="importRetailCSV($event)" #retailFileInput type="file" id="file">
+       
+        <button type="button" mat-raised-button color="accent" (click)="fileInput.click()">Upload eCom (C-Series) CSV</button>
+        <input hidden (change)="importEComCSV($event)" #ecomFileInput type="file" id="file">
         <!-- Download Set CSV button -->
         <button type="button" mat-raised-button color="primary" (click)="exportSellingBySet()">Download Set Selling Enabled CSV</button>
         <mat-checkbox #newOnlyForSet (change)="onNewOnlyToggle($event, 'set')">New Products Only?</mat-checkbox>

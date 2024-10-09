@@ -7,7 +7,7 @@
       <td mat-cell class="overflow" *matCellDef="let element">
         <ng-container [ngSwitch]="column">
           <ng-container *ngSwitchCase="'market_price'">
-            {{element.price.market_price[(objectKeys(element.price.market_price)[0])]}}
+            {{element.market_price}}
           </ng-container>
           <ng-container class="overflow"*ngSwitchCase="'image_url'">
             <img [src]="getNestedValue(element, column)" alt="{{getNestedValue(element, 'name')}}"
@@ -31,7 +31,7 @@
             </mat-form-field>
           </ng-container>
           <ng-container *ngSwitchCase="'buylist_price'">
-            {{ calculateBuylistPrice(element.price.market_price[objectKeys(element.price.market_price)[0]]) | number:'1.2-2' }}
+            {{ calculateBuylistPrice(element.market_price) | number:'1.2-2' }}
           </ng-container>
           <ng-container *ngSwitchCase="'pos_id'">
         {{element.store_status[objectKeys(element.store_status)[0]].pos_id}}

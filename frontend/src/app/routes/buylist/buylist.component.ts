@@ -46,7 +46,7 @@ export class BuylistComponent {
   }
 
   calculateTotal() {
-    this.total = this.cart.reduce((sum, item) => sum + item.buylist_price * item.quantity, 0);
+    this.total = this.cart.reduce((sum, item) => sum + item.market_price * .6 * item.quantity, 0);
   }
 
   submitOrder() {
