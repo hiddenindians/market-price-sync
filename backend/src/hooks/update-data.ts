@@ -63,7 +63,12 @@ const fetchSets = async (context: HookContext) => {
           await context.app.service('sets').create({
             game_id: game._id,
             name: group.name,
+            code: group.abbreviation,
             external_id: { tcgcsv_id: group.groupId }
+          })
+        } else if (existingSet.total === 1) {
+          await context.app.service('sets').patch(existingSet.data[0]._id as string ,{
+            code: group.abbreviation as string
           })
         }
       })
@@ -222,14 +227,16 @@ export const processProductsAndPrices = async (context: HookContext) => {
           if (!foundProduct) continue
 
           const newProduct = extractProductData(foundProduct)
-         if (foundProduct.pre_release || foundProduct.anniversary){
-            console.log(foundProduct)
+        //  if (foundProduct.pre_release || foundProduct.anniversary){
+        //     console.log(foundProduct)
 
-          }
+        //   }
 
           newProduct.name += foundProduct.pre_release ? ' Pre-Release Event' : ''
           newProduct.name += foundProduct.anniversary ? ' Anniversary Event' : ''
           newProduct.name += foundProduct.promo ? ' Promo' : ''
+
+
 
           if (
             (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
@@ -241,27 +248,25 @@ export const processProductsAndPrices = async (context: HookContext) => {
               newProduct.collector_number == undefined
             ) {
               newProduct.name += ` (${price.subTypeName}, ${newProduct.rarity})`
+             // nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
+
             } else if (newProduct.collector_number != undefined) {
               newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}, ${newProduct.rarity})`
+            //  nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
             } else {
               // console.log(newProduct)
             }
           }
 
-          let regex = new RegExp(`\\(${price.subTypeName},`);
+          
 
-
-          const nameQuery = newProduct.name.match(regex) ? regex.source : newProduct.name
           const existingProductData = await context.app.service('products').find({
             query: {
               'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id),
-              name: {
-                $regex: nameQuery,  // Replace partialString with your search term
-                $options: 'i' // 'i' makes the search case-insensitive
-              }
+              name: newProduct.name
+
             }
           })
-        //  console.log(existingProductData)
           // const settingsData = await context.app.service('settings').find()
           // const settings = settingsData.data[0] || { tcgcsv_last_updated: 0 }
 
@@ -274,8 +279,9 @@ export const processProductsAndPrices = async (context: HookContext) => {
             timestamp: Date.now()
           }
 
-          if (existingProductData.total == 1) {
+          if (existingProductData.total === 1) {
             const existingProduct = existingProductData.data[0] as Products
+           // console.log(existingProductData.data[0].name)
 
             //   if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
             //  console.log('updating price')
@@ -295,8 +301,9 @@ export const processProductsAndPrices = async (context: HookContext) => {
             //  }
           } else if (existingProductData.total > 1) {
             console.log('found too many')
+            console.log(existingProductData.data)
           } else if (existingProductData.total === 0){
-            //   console.log('no match')
+            console.log('no match')
             newProduct.market_price = newPrice.market_price
             newProduct.low_price = newPrice.low_price
             newProduct.high_price = newPrice.high_price

@@ -114,8 +114,7 @@ export const productsDataSchema = Type.Pick(
     'average_cost',
     // 'buying',
     // 'selling',
-    'extended_data',
- 
+    'extended_data'
   ],
   {
     $id: 'ProductsData'
@@ -132,7 +131,7 @@ export const productsPatchSchema = Type.Intersect(
     //  Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
     //   Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
     //   Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
-    Type.Partial(Type.Object({ name: Type.String()})),
+    Type.Partial(Type.Object({ name: Type.String() })),
     Type.Partial(Type.Object({ last_updated: Type.Number() })),
     Type.Partial(
       Type.Object({
@@ -200,58 +199,66 @@ export const productsQueryProperties = Type.Pick(productsSchema, [
   'set_id',
   'name',
   'sort_number'
-  ])
+])
 
 export const productsQuerySchema = Type.Intersect(
   [
-    Type.Object(
-      {
-        name: Type.Optional(
-          Type.Union([
-            queryProperty(Type.String()), // Allow plain string
-            queryProperty(
-              Type.Object({
-                $regex: Type.String(),
-                $options: Type.Optional(Type.String())
-              })
-            ) // Allow regex object
-          ])
-        ),
-        'store_status': queryProperty(Type.Any()),
-        // 'store_status': Type.Optional(
-        //   Type.Record(
-        //     Type.String(),
-        //     Type.Object({
-        //       pos_id: queryProperty(Type.String()),
-        //       selling: Type.Optional(
-        //         Type.Object({
-        //           enabled: queryProperty(Type.Boolean()),
-        //           quantity: queryProperty(Type.Number())
-        //         })
-        //       ),
-        //       buying: Type.Optional(
-        //         Type.Object({
-        //           enabled: queryProperty(Type.Boolean()),
-        //           quantity: queryProperty(Type.Number())
-        //         })
-        //       )
-        //     })
-        //   )
-        // ),
-        'external_id.tcgcsv_id': queryProperty(Type.Number()),
-        'external_id.tcgcsv_group_id':queryProperty(Type.Number()),
-        'game_id': queryProperty(ObjectIdSchema()),
-        'set_id': queryProperty(ObjectIdSchema()),
-        $sort:
-        Type.Optional(Type.Object({
+    Type.Object({
+      name: Type.Optional(
+        Type.Union([
+          queryProperty(Type.String()), // Allow plain string
+          queryProperty(
+            Type.Object({
+              $regex: Type.Optional(Type.String()),
+              $options: Type.Optional(Type.String())
+            })
+          )
+          // Allow regex object
+        ])
+      ),
+      $text: Type.Optional(
+        queryProperty(
+          Type.Object({
+            $search: Type.Optional(Type.String())
+          })
+        )
+      ),
+      store_status: queryProperty(Type.Any()),
+      // 'store_status': Type.Optional(
+      //   Type.Record(
+      //     Type.String(),
+      //     Type.Object({
+      //       pos_id: queryProperty(Type.String()),
+      //       selling: Type.Optional(
+      //         Type.Object({
+      //           enabled: queryProperty(Type.Boolean()),
+      //           quantity: queryProperty(Type.Number())
+      //         })
+      //       ),
+      //       buying: Type.Optional(
+      //         Type.Object({
+      //           enabled: queryProperty(Type.Boolean()),
+      //           quantity: queryProperty(Type.Number())
+      //         })
+      //       )
+      //     })
+      //   )
+      // ),
+      'external_id.tcgcsv_id': queryProperty(Type.Number()),
+      'external_id.tcgcsv_group_id': queryProperty(Type.Number()),
+      game_id: queryProperty(ObjectIdSchema()),
+      set_id: queryProperty(ObjectIdSchema()),
+      $sort: Type.Optional(
+        Type.Object({
           'external_id.tcgcsv_group_id': Type.Optional(Type.Number()),
-          'sort_number': Type.Optional(Type.Number()),
-          'price.market_price.Normal': Type.Optional(Type.Number()), 
-          'price.market_price.Foil': Type.Optional(Type.Number()), 
-        })),
-        $limit: Type.Optional(Type.Number()),
-        $skip: Type.Optional(Type.Number())   
-      })
+          sort_number: Type.Optional(Type.Number()),
+          'price.market_price.Normal': Type.Optional(Type.Number()),
+          'price.market_price.Foil': Type.Optional(Type.Number())
+        })
+      ),
+      $limit: Type.Optional(Type.Number()),
+      $skip: Type.Optional(Type.Number())
+    })
   ],
   {
     additionalProperties: true
