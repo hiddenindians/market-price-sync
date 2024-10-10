@@ -36,6 +36,9 @@
           <ng-container *ngSwitchCase="'pos_id'">
         {{element.store_status[objectKeys(element.store_status)[0]].pos_id}}
           </ng-container>
+          <ng-container *ngSwitchCase="'ecom_pid'">
+            {{element.store_status[objectKeys(element.store_status)[0]].ecom_pid}}
+              </ng-container>
           <ng-container *ngSwitchDefault>
             {{ getNestedValue(element, column) }}
           </ng-container>

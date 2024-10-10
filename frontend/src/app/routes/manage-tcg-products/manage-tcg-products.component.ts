@@ -44,7 +44,8 @@ export class ManageTCGProductsComponent implements OnInit {
     'store_status.buying.enabled',
     'store_status.buying.quantity',
     'buylist_price',
-    'pos_id'
+    'pos_id',
+    'ecom_pid'
   ]
   pageSize: number = 10
   pageIndex: number = 0
@@ -131,7 +132,6 @@ export class ManageTCGProductsComponent implements OnInit {
     }
   }
   importEComCSV(event: Event){
-    console.log('ecom')
     const element = event.currentTarget as HTMLInputElement
     let fileList: FileList | null = element.files
     if (fileList) {
@@ -145,41 +145,53 @@ export class ManageTCGProductsComponent implements OnInit {
 
   async processEComCSV(results: any){
     const products = results.data
+    const batchSize = 
+    console.log(results.data.length)
+
 
     await Promise.all(
       products.map(async (product: any) => {
         try {
-          const byIds = await this.data.getProductByEComIDs(product.Internal_ID, product.Internal_Variant_ID) 
+          console.log('tryin')
+          const byIds = await this.data.getProductByEComIDs(this.storeId, product.Internal_ID, product.Internal_Variant_ID) 
+          console.log(byIds)
           if (byIds.total === 1){
             //found on ecom details
             console.log('found on ids')
             let foundProduct = byIds.data[0]
+            console.log(foundProduct)
+
             this.data.patchProduct(foundProduct._id, {
-              [`store_status.${this.storeId}.ecom_pid`]: product['Internal ID'],
-              [`store_status.${this.storeId}.ecom_vid`]: product['Internal Variant ID'],
+              [`store_status.${this.storeId}.ecom_pid`]: product['Internal_ID'],
+              [`store_status.${this.storeId}.ecom_vid`]: product['Internal_Variant_ID'],
             } )
 
           } else {
-            try {
-              const byName = await this.data.getProduct({name: product['EN Title Long']})
+            console.log('try again')
+
+            // try {
+              console.log(product['EN_Title_Long'])
+              const byName = await this.data.getProduct({
+                name: product['EN_Title_Long']
+              })
+
               if(byName.total === 1){
                 //found by name
                 console.log('found by name')
 
                 let foundProduct = byName.data[0]
                 this.data.patchProduct(foundProduct._id, {
-                  [`store_status.${this.storeId}.ecom_pid`]: product['Internal ID'],
-                  [`store_status.${this.storeId}.ecom_vid`]: product['Internal Variant ID'],
+                  [`store_status.${this.storeId}.ecom_pid`]: product['Internal_ID'],
+                  [`store_status.${this.storeId}.ecom_vid`]: product['Internal_Variant_ID'],
                 } )
-              }
-              else {
+              } else {
                 //no match
-                console.log(`No match for ${product['EN Title Long']}`)
+                console.log(`No match for ${product['EN_Title_Long']}`)
               }
-            }
-            catch(error: any){
-              console.error(error)
-            }
+            // }
+            // catch(error: any){
+            //   console.error(error)
+            // }
           }
         }
         catch(error: any){
@@ -233,14 +245,14 @@ export class ManageTCGProductsComponent implements OnInit {
             if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
               largeChanges.push({ ...product, new_price: newPrice })
             }
-          } else {
+          } else if(data.total === 0) {
             console.log('no match on sysID')
             let name = product.Item ? product.Item : product.Description
 
             const nameData = await this.data.getProduct({
               name: name
             })
-            if (nameData.total !== 0) {
+            if (nameData.total === 1) {
               // Found by name
               const newPrice = this.retailPrice(this.getExchangeRate(nameData.data[0].market_price))
               const oldPrice = Number(product.MSRP)
@@ -260,9 +272,19 @@ export class ManageTCGProductsComponent implements OnInit {
               if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
                 largeChanges.push({ ...product, new_price: newPrice })
               }
-            } else {
+            } else if (nameData.total == 0) {
               noMatch.push(product)
+            } else {
+              //multiple matches
+              data.data.forEach((element: { name: any }) => {
+                console.log(`Duplicate value found from search on name: ${element.name} `)
+              });
             }
+          } else {
+            //multiple matches
+            data.data.forEach((element: { name: any }) => {
+              console.log(`Duplicate value found from search on SystemID: ${element.name} `)
+            });
           }
         } catch (error) {
           console.error('Error processing product:', product, error)

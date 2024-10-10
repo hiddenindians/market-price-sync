@@ -39,6 +39,7 @@ export class DataService {
   }
 
   getProduct(query: {}) {
+    console.log(query)
     return this._feathers.service('products').find({ query: query })
   }
 
@@ -118,15 +119,15 @@ export class DataService {
     }
   }
 
-  getProductByEComIDs(id: string, variantId: string){
-    let query: Query = {
-      ecom_pid: id,
-      ecom_vid: variantId,
-      $limit: 10000,
-    }
+  getProductByEComIDs(storeId: string, id: string, variantId: string){
+
 
     return this._feathers.service('products').find({
-      query: query
+      query: {
+        [`store_status.${storeId}.ecom_pid`]: id,
+        [`store_status.${storeId}.ecom_vid`]: variantId
+
+      }
     })
   }
 
