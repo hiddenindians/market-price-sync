@@ -56,9 +56,7 @@ const fetchSets = async (context: HookContext) => {
     const setPromises = groupsData.flatMap(({ game, groups }) =>
       groups.map(async (group: any) => {
         const existingSet = await context.app.service('sets').find({
-          query: { game_id: game._id, 
-            ['external_id.tcgcsv_id']: group.groupId,
-          }
+          query: { game_id: game._id, ['external_id.tcgcsv_id']: group.groupId }
         })
 
         if (existingSet.total === 0) {
@@ -147,7 +145,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
     newProduct.image_url = `${foundProduct.imageUrl.slice(0, -8)}400w.jpg`
     // newProduct.buying = { enabled: false, quantity: 0 }
     //   newProduct.selling = { enabled: false, quantity: 0 }
-    newProduct.type = determineProductType(foundProduct, newProduct.rarity || "")
+    newProduct.type = determineProductType(foundProduct, newProduct.rarity || '')
 
     newProduct.last_updated = Date.now()
 
@@ -189,8 +187,14 @@ export const processProductsAndPrices = async (context: HookContext) => {
               const products = productResponse.data.results.map((v: any) => ({
                 ...v,
                 game_id: set.game_id,
-                set_id: set._id
+                set_id: set._id,
+                // set_name: set.name,
+                anniversary: set.name.includes('Anniversary') ? true : false,
+                pre_release:
+                  set.name.includes('Pre-Release') || set.name.includes('Prerelease') ? true : false,
+                promo: set.name.match(/\bPromo\b/) || set.name.match(/\bPromos\b/) ? true : false
               }))
+
 
               const prices = priceResponse.data.results
               return { products, prices }
@@ -218,6 +222,14 @@ export const processProductsAndPrices = async (context: HookContext) => {
           if (!foundProduct) continue
 
           const newProduct = extractProductData(foundProduct)
+         if (foundProduct.pre_release || foundProduct.anniversary){
+            console.log(foundProduct)
+
+          }
+
+          newProduct.name += foundProduct.pre_release ? ' Pre-Release Event' : ''
+          newProduct.name += foundProduct.anniversary ? ' Anniversary Event' : ''
+          newProduct.name += foundProduct.promo ? ' Promo' : ''
 
           if (
             (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
@@ -236,15 +248,22 @@ export const processProductsAndPrices = async (context: HookContext) => {
             }
           }
 
+          let regex = new RegExp(`\\(${price.subTypeName},`);
+
+
+          const nameQuery = newProduct.name.match(regex) ? regex.source : newProduct.name
           const existingProductData = await context.app.service('products').find({
             query: {
-              name: newProduct.name,
-              'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id)
+              'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id),
+              name: {
+                $regex: nameQuery,  // Replace partialString with your search term
+                $options: 'i' // 'i' makes the search case-insensitive
+              }
             }
           })
-
-          const settingsData = await context.app.service('settings').find()
-          const settings = settingsData.data[0] || { tcgcsv_last_updated: 0 }
+        //  console.log(existingProductData)
+          // const settingsData = await context.app.service('settings').find()
+          // const settings = settingsData.data[0] || { tcgcsv_last_updated: 0 }
 
           const newPrice: Price = {
             market_price: price.marketPrice ? Number(price.marketPrice) : -1,
@@ -255,27 +274,28 @@ export const processProductsAndPrices = async (context: HookContext) => {
             timestamp: Date.now()
           }
 
-          if (existingProductData.total > 0) {
+          if (existingProductData.total == 1) {
             const existingProduct = existingProductData.data[0] as Products
 
-         //   if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
-              //  console.log('updating price')
-              await context.app
-                .service('prices')
-                .create({ ...newPrice, product_id: existingProductData.data[0]._id })
-              var _id = existingProduct._id as string
-              await context.app.service('products').patch(_id, {
-                last_updated: newProduct.last_updated,
-                market_price: newPrice.market_price,
-                low_price: newPrice.low_price,
-                high_price: newPrice.high_price,
-                mid_price: newPrice.mid_price,
-                direct_low_price: newPrice.direct_low_price,
-              })
-          //  }
+            //   if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
+            //  console.log('updating price')
+            await context.app
+              .service('prices')
+              .create({ ...newPrice, product_id: existingProductData.data[0]._id })
+            var _id = existingProduct._id as string
+            await context.app.service('products').patch(_id, {
+              name: newProduct.name,
+              last_updated: newProduct.last_updated,
+              market_price: newPrice.market_price,
+              low_price: newPrice.low_price,
+              high_price: newPrice.high_price,
+              mid_price: newPrice.mid_price,
+              direct_low_price: newPrice.direct_low_price
+            })
+            //  }
           } else if (existingProductData.total > 1) {
             console.log('found too many')
-          } else {
+          } else if (existingProductData.total === 0){
             //   console.log('no match')
             newProduct.market_price = newPrice.market_price
             newProduct.low_price = newPrice.low_price
@@ -395,10 +415,10 @@ export const processProductsAndPrices = async (context: HookContext) => {
   // }
 
   const determineProductType = (foundProduct: any, rarity: string) => {
-    const { extendedData, name, url} = foundProduct
+    const { extendedData, name, url } = foundProduct
     const categoryId = foundProduct.categoryId || 0
 
-    if (extendedData.length > 2 && rarity !== "") {
+    if (extendedData.length > 2 && rarity !== '') {
       return 'Single Cards'
     }
 
@@ -432,15 +452,13 @@ export const processProductsAndPrices = async (context: HookContext) => {
       name.includes('Jumpstart') ||
       name.includes('VIP Edition') ||
       name.includes('Mythic Edition')
-
-
     ) {
       return 'Boosters'
     }
 
     if (name.includes('Commander')) {
-      const yearMatch = name.match(/Commander (\d{4})/);
-      if (yearMatch) return 'Decks';
+      const yearMatch = name.match(/Commander (\d{4})/)
+      if (yearMatch) return 'Decks'
     }
     // Direct keyword checks for decks
     if (
@@ -451,23 +469,22 @@ export const processProductsAndPrices = async (context: HookContext) => {
       name.includes('Global Series') ||
       (name.includes('Tournament Pack') && categoryId === 1) ||
       (name.includes('Commander') && name.includes('Set of'))
-
     ) {
       return 'Decks'
     }
 
     if (name.includes('SDCC')) {
-      const yearMatch = name.match(/SDCC (\d{4})/);
-      if (yearMatch) return 'Promotion Cards';
+      const yearMatch = name.match(/SDCC (\d{4})/)
+      if (yearMatch) return 'Promotion Cards'
     }
 
-    if((name.includes('Tournament Pack') && categoryId !== 1) || name.includes("Promo Pack")) return "Promotion Cards"
-
-    
+    if ((name.includes('Tournament Pack') && categoryId !== 1) || name.includes('Promo Pack'))
+      return 'Promotion Cards'
 
     // Direct keyword checks for other categories
-    if (name.includes('Box Set') || name.includes('Game Night') || name.includes('Scene Box')) return 'Box Sets'
-    
+    if (name.includes('Box Set') || name.includes('Game Night') || name.includes('Scene Box'))
+      return 'Box Sets'
+
     if (name.includes('Retail Tin')) return 'Tins'
     if (name.includes('Elite Trainer Box')) return 'Elite Trainer Boxes'
     if (name.includes('Build & Battle Box')) return 'Build & Battle Boxes'
@@ -480,11 +497,9 @@ export const processProductsAndPrices = async (context: HookContext) => {
       name.includes('Gift Edition')
     )
       return 'Bundles'
-    if (name.includes('Starter Set') || name.includes('Starter Kit') || name.includes('Clash Pack')) return 'Starter Kits'
-    if (
-      name.includes('Prerelease')
-    )
-      return 'Prerelease Packs'
+    if (name.includes('Starter Set') || name.includes('Starter Kit') || name.includes('Clash Pack'))
+      return 'Starter Kits'
+    if (name.includes('Prerelease')) return 'Prerelease Packs'
     if (name.includes('Secret Lair')) return 'Secret Lair Drop'
 
     // Check for rarity-based single card
@@ -558,12 +573,12 @@ interface NewProduct {
   type: string
   last_updated: number
   _id: string
-    market_price: number
-    low_price: number
-    mid_price: number 
-    high_price: number
-    direct_low_price: number
-  
+  market_price: number
+  low_price: number
+  mid_price: number
+  high_price: number
+  direct_low_price: number
+
   attack?: number
   defense?: number
   monster_type?: string
@@ -631,7 +646,7 @@ interface Price {
   product_id?: string | {}
   market_price: number
   low_price: number
-  mid_price: number 
+  mid_price: number
   high_price: number
   direct_low_price: number
   timestamp: number

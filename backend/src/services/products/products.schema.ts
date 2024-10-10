@@ -132,6 +132,7 @@ export const productsPatchSchema = Type.Intersect(
     //  Type.Partial(Type.Object({ 'buying.enabled': Type.Boolean() })),
     //   Type.Partial(Type.Object({ 'buying.quantity': Type.Number() })),
     //   Type.Partial(Type.Object({ 'selling.quantity': Type.Number() })),
+    Type.Partial(Type.Object({ name: Type.String()})),
     Type.Partial(Type.Object({ last_updated: Type.Number() })),
     Type.Partial(
       Type.Object({
@@ -205,7 +206,17 @@ export const productsQuerySchema = Type.Intersect(
   [
     Type.Object(
       {
-        'name': queryProperty(Type.String()),
+        name: Type.Optional(
+          Type.Union([
+            queryProperty(Type.String()), // Allow plain string
+            queryProperty(
+              Type.Object({
+                $regex: Type.String(),
+                $options: Type.Optional(Type.String())
+              })
+            ) // Allow regex object
+          ])
+        ),
         'store_status': queryProperty(Type.Any()),
         // 'store_status': Type.Optional(
         //   Type.Record(
