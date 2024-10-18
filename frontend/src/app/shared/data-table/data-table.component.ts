@@ -8,6 +8,8 @@ import {
   SimpleChanges,
   ViewChild
 } from '@angular/core'
+import {animate, state, style, transition, trigger} from '@angular/animations';
+
 import { MatTableDataSource } from '@angular/material/table'
 import { MatSort, MatSortModule, Sort } from '@angular/material/sort'
 import { MatTableModule } from '@angular/material/table'
@@ -26,6 +28,13 @@ import { MatInputModule } from '@angular/material/input'
     MatSlideToggleModule,
     MatInputModule
   ],
+  animations: [
+    trigger('detailExpand', [
+      state('collapsed,void', style({height: '0px', minHeight: '0'})),
+      state('expanded', style({height: '*'})),
+      transition('expanded <=> collapsed', animate('225ms cubic-bezier(0.4, 0.0, 0.2, 1)')),
+    ]),
+  ],
   templateUrl: './data-table.component.html',
   styleUrls: ['./data-table.component.scss']
 })
@@ -41,11 +50,11 @@ export class DataTableComponent implements OnChanges {
   @ViewChild(MatSort) sort!: MatSort
   @ViewChild(MatSlideToggle) sToggle!: MatSlideToggle
   @Output() sortChanged = new EventEmitter<{ active: string; direction: string } | null>()
-  @Output() buyToggle = new EventEmitter<{ id: string; storeId: string; value: boolean }>()
-  @Output() sellToggle = new EventEmitter<{ id: string; storeId: string; value: boolean }>()
-  @Output() buyQuantity = new EventEmitter<{ id: string; storeId: string; value: number }>()
-  @Output() sellQuantity = new EventEmitter<{ id: string; storeId: string; value: number }>()
-
+  @Output() buyToggle = new EventEmitter<{ id: string; storeId: string; value: boolean, condition: string }>()
+  @Output() sellToggle = new EventEmitter<{ id: string; storeId: string; value: boolean, condition: string }>()
+  @Output() buyQuantity = new EventEmitter<{ id: string; storeId: string; value: number, condition: string }>()
+  @Output() sellQuantity = new EventEmitter<{ id: string; storeId: string; value: number, condition: string }>()
+  displayedColumnsWithExpand = [...this.displayedColumns, 'expand']
   headerMapping: { [key: string]: string } = {
     'store_status.buying.enabled': 'Buylist Enabled',
     'store_status.buying.quantity': 'Buylist Quantity',
@@ -61,6 +70,7 @@ export class DataTableComponent implements OnChanges {
 
   constructor() {
     this.dataSource = new MatTableDataSource()
+    
   }
   ngAfterViewInit() {
     this.paginator.page.subscribe((event: PageEvent) => {
@@ -94,56 +104,64 @@ export class DataTableComponent implements OnChanges {
     })
   }
 
-  onQtyChange(element: any, column: string, event: Event): void {
+  onQtyChange(element: any, column: string, event: Event, condition: string): void {
     const input = event.target as HTMLInputElement
     const value = parseInt(input.value, 10)
     if (column.includes('selling')) {
       this.sellQuantity.emit({
         id: element._id,
         storeId: this.objectKeys(element.store_status)[0],
-        value: value
+        value: value,
+        condition: condition
       })
 
       if (value > 0) {
-        element.store_status[this.objectKeys(element.store_status)[0]].selling.enabled = true;
+        element.store_status[this.objectKeys(element.store_status)[0]].condition.selling.enabled = true;
 
         this.sellToggle.emit({
           id: element._id,
           storeId: this.objectKeys(element.store_status)[0],
-          value: true
+          value: true,
+          condition: condition
         });
       }
     } else if (column.includes('buying')) {
       this.buyQuantity.emit({
         id: element._id,
         storeId: this.objectKeys(element.store_status)[0],
-        value: value
+        value: value,
+        condition: condition
       })
       if (value > 0) {
-        element.store_status[this.objectKeys(element.store_status)[0]].buying.enabled = true;
+        element.store_status[this.objectKeys(element.store_status)[0]].condition.buying.enabled = true;
 
         this.buyToggle.emit({
           id: element._id,
           storeId: this.objectKeys(element.store_status)[0],
-          value: true
+          value: true,
+          condition: condition
         });
       }
     }
     // Add any additional logic to handle the quantity change, such as updating the server
   }
 
-  onCheckboxChange(element: any, column: string, event: MatSlideToggleChange): void {
+  onCheckboxChange(element: any, column: string, event: MatSlideToggleChange, condition: string): void {
     if (column.includes('selling')) {
       this.sellToggle.emit({
         id: element._id,
         storeId: this.objectKeys(element.store_status)[0],
-        value: event.checked
+        value: event.checked,
+        condition: condition
+
       })
     } else if (column.includes('buying')) {
       this.buyToggle.emit({
         id: element._id,
         storeId: this.objectKeys(element.store_status)[0],
-        value: event.checked
+        value: event.checked,
+        condition: condition
+
       })
     }
   }
