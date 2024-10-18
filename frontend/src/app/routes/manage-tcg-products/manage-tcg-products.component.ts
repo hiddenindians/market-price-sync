@@ -412,20 +412,20 @@ console.log(noMatch)
     this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, event.value, '')
   }
 
-  onSellToggle(event: { id: string; storeId: string; value: boolean }) {
-    this.data.updateSellingStatus(event.id, event.storeId, event.value)
+  onSellToggle(event: { id: string; storeId: string; value: boolean, condition: string }) {
+    this.data.updateSellingStatus(event.id, event.storeId, event.value, event.condition)
   }
 
-  onBuyToggle(event: { id: string; storeId: string; value: boolean }) {
-    this.data.updateBuyingStatus(event.id, event.storeId, event.value)
+  onBuyToggle(event: { id: string; storeId: string; value: boolean, condition: string }) {
+    this.data.updateBuyingStatus(event.id, event.storeId, event.value, event.condition)
   }
 
-  onBuyQuantityChange(event: { id: string; storeId: string; value: number }) {
-    this.data.updateBuyingQuantity(event.id, event.storeId, event.value)
+  onBuyQuantityChange(event: { id: string; storeId: string; value: number, condition: string }) {
+    this.data.updateBuyingQuantity(event.id, event.storeId, event.value, event.condition)
   }
 
-  onSellQuantityChange(event: { id: string; storeId: string; value: number }) {
-    this.data.updatSellingQuantity(event.id, event.storeId, event.value)
+  onSellQuantityChange(event: { id: string; storeId: string; value: number, condition: string }) {
+    this.data.updatSellingQuantity(event.id, event.storeId, event.value, event.condition)
   }
 
   onNewOnlyToggle(event: MatCheckboxChange, type: string) {

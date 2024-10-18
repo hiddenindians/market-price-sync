@@ -8,6 +8,24 @@ import type { HookContext } from '../../declarations'
 import { dataValidator, queryValidator } from '../../validators'
 import type { ProductsService } from './products.class'
 
+const conditionSchema = Type.Object({
+  selling: Type.Optional(
+    Type.Object({
+      enabled: Type.Optional(Type.Boolean()),
+      quantity: Type.Optional(Type.Number())
+    })
+  ),
+  buying: Type.Optional(
+    Type.Object({
+      enabled: Type.Optional(Type.Boolean()),
+      quantity: Type.Optional(Type.Number())
+    })
+  ),
+  pos_id: Type.Optional(Type.String()),
+  ecom_pid: Type.Optional(Type.String()),
+  ecom_vid: Type.Optional(Type.String())
+})
+
 // Main data model schema
 export const productsSchema = Type.Object(
   {
@@ -38,6 +56,7 @@ export const productsSchema = Type.Object(
     mid_price: Type.Optional(Type.Number()),
     high_price: Type.Optional(Type.Number()),
     direct_low_price: Type.Optional(Type.Number()),
+
     average_cost: Type.Optional(Type.Number()),
     pos_id: Type.Optional(Type.String()),
     type: Type.Optional(Type.String()),
@@ -63,17 +82,71 @@ export const productsSchema = Type.Object(
       Type.Record(
         Type.String(),
         Type.Object({
-          selling: Type.Object({
-            enabled: Type.Boolean({ default: false }),
-            quantity: Type.Optional(Type.Number({ default: 0 }))
+          near_mint: Type.Object({
+            selling: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            buying: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            pos_id: Type.Optional(Type.String()),
+            ecom_pid: Type.Optional(Type.String()),
+            ecom_vid: Type.Optional(Type.String())
           }),
-          buying: Type.Object({
-            enabled: Type.Boolean({ default: false }),
-            quantity: Type.Optional(Type.Number({ default: 0 }))
+          lightly_played: Type.Object({
+            selling: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            buying: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            pos_id: Type.Optional(Type.String()),
+            ecom_pid: Type.Optional(Type.String()),
+            ecom_vid: Type.Optional(Type.String())
           }),
-          pos_id: Type.Optional(Type.String()),
-          ecom_pid: Type.Optional(Type.String()),
-          ecom_vid: Type.Optional(Type.String())
+          moderately_played: Type.Object({
+            selling: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            buying: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            pos_id: Type.Optional(Type.String()),
+            ecom_pid: Type.Optional(Type.String()),
+            ecom_vid: Type.Optional(Type.String())
+          }),
+          heavily_played: Type.Object({
+            selling: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            buying: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            pos_id: Type.Optional(Type.String()),
+            ecom_pid: Type.Optional(Type.String()),
+            ecom_vid: Type.Optional(Type.String())
+          }),
+          damaged: Type.Object({
+            selling: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            buying: Type.Object({
+              enabled: Type.Boolean({ default: false }),
+              quantity: Type.Optional(Type.Number({ default: 0 }))
+            }),
+            pos_id: Type.Optional(Type.String()),
+            ecom_pid: Type.Optional(Type.String()),
+            ecom_vid: Type.Optional(Type.String())
+          })
         })
       )
     )
@@ -83,6 +156,8 @@ export const productsSchema = Type.Object(
     additionalProperties: false
   }
 )
+
+
 export type Products = Static<typeof productsSchema>
 export const productsValidator = getValidator(productsSchema, dataValidator)
 export const productsResolver = resolve<Products, HookContext<ProductsService>>({})
@@ -123,6 +198,7 @@ export const productsDataSchema = Type.Pick(
 export type ProductsData = Static<typeof productsDataSchema>
 export const productsDataValidator = getValidator(productsDataSchema, dataValidator)
 export const productsDataResolver = resolve<Products, HookContext<ProductsService>>({})
+// Define a common schema for condition types
 
 // Schema for updating existing entries
 export const productsPatchSchema = Type.Intersect(
@@ -139,17 +215,11 @@ export const productsPatchSchema = Type.Intersect(
           Type.Record(
             Type.String(),
             Type.Object({
-              selling: Type.Object({
-                enabled: Type.Boolean({ default: false }),
-                quantity: Type.Optional(Type.Number({ default: 0 }))
-              }),
-              buying: Type.Object({
-                enabled: Type.Boolean({ default: false }),
-                quantity: Type.Optional(Type.Number({ default: 0 }))
-              }),
-              pos_id: Type.Optional(Type.String()),
-              ecom_pid: Type.Optional(Type.String()),
-              ecom_vid: Type.Optional(Type.String())
+              near_mint: Type.Optional(conditionSchema),
+              lightly_played: Type.Optional(conditionSchema),
+              moderately_played: Type.Optional(conditionSchema),
+              heavily_played: Type.Optional(conditionSchema),
+              damaged: Type.Optional(conditionSchema)
             })
           )
         )

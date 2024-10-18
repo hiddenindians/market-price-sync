@@ -202,27 +202,27 @@ export class DataService {
   patchProduct(id: string, body: {}) {
     this._feathers.service('products').patch(id, body)
   }
-  updateSellingStatus(id: string, storeId: string, enabled: boolean) {
+  updateSellingStatus(id: string, storeId: string, enabled: boolean, condition: string) {
     this._feathers.service('products').patch(id, {
-      [`store_status.${storeId}.selling.enabled`]: enabled
+      [`store_status.${storeId}.${condition}.selling.enabled`]: enabled
     })
   }
 
-  updateBuyingStatus(id: string, storeId: string, enabled: boolean) {
+  updateBuyingStatus(id: string, storeId: string, enabled: boolean, condition: string) {
     this._feathers.service('products').patch(id, {
-      [`store_status.${storeId}.buying.enabled`]: enabled
+      [`store_status.${storeId}.${condition}.buying.enabled`]: enabled
     })
   }
 
-  updatSellingQuantity(id: string, storeId: string, quantity: number) {
+  updatSellingQuantity(id: string, storeId: string, quantity: number, condition: string) {
     this._feathers.service('products').patch(id, {
-      [`store_status.${storeId}.selling.quantity`]: quantity
+      [`store_status.${storeId}.${condition}.selling.quantity`]: quantity
     })
   }
 
-  updateBuyingQuantity(id: string, storeId: string, quantity: number) {
+  updateBuyingQuantity(id: string, storeId: string, quantity: number, condition: string) {
     this._feathers.service('products').patch(id, {
-      [`store_status.${storeId}.buying.quantity`]: quantity
+      [`store_status.${storeId}.${condition}.buying.quantity`]: quantity
     })
   }
 

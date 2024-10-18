@@ -1,5 +1,6 @@
 <div class="mat-elevation-z8">
-  <table mat-table [dataSource]="dataSource" class="mat-table" matSort (matSortChange)="sortData($event)">
+  <table mat-table [dataSource]="dataSource" class="mat-table" multiTemplateDataRows matSort
+    (matSortChange)="sortData($event)">
 
     <!-- Define columns -->
     <ng-container *ngFor="let column of displayedColumns" [matColumnDef]="column">
@@ -9,36 +10,41 @@
           <ng-container *ngSwitchCase="'market_price'">
             {{element.market_price}}
           </ng-container>
-          <ng-container class="overflow"*ngSwitchCase="'image_url'">
+          <ng-container class="overflow" *ngSwitchCase="'image_url'">
             <img [src]="getNestedValue(element, column)" alt="{{getNestedValue(element, 'name')}}"
               style="width: 50px; height: auto;">
           </ng-container>
-          
+
           <ng-container *ngSwitchCase="'store_status.buying.enabled'">
-            <mat-slide-toggle checked="{{element.store_status[objectKeys(element.store_status)[0]].buying.enabled}}" (change)="onCheckboxChange(element, column, $event)"></mat-slide-toggle>
+            <mat-slide-toggle
+              checked="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.buying.enabled}}"
+              (change)="onCheckboxChange(element, column, $event, 'near_mint')"></mat-slide-toggle>
           </ng-container>
           <ng-container *ngSwitchCase="'store_status.buying.quantity'">
-            <mat-form-field appearance="outline"> <input matInput  min="0" type="number" value="{{element.store_status[objectKeys(element.store_status)[0]].buying.quantity}}"
-                (change)="onQtyChange(element, column, $event)">
+            <mat-form-field appearance="outline"> <input matInput min="0" type="number"
+                value="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.buying.quantity}}"
+                (change)="onQtyChange(element, column, $event, 'near_mint')">
             </mat-form-field> </ng-container>
 
-              <ng-container *ngSwitchCase="'store_status.selling.enabled'">
-            <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, column, $event)" checked="{{element.store_status[objectKeys(element.store_status)[0]].selling.enabled}}"></mat-slide-toggle>
+          <ng-container *ngSwitchCase="'store_status.selling.enabled'">
+            <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, column, $event, 'near_mint')"
+              checked="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.selling.enabled}}"></mat-slide-toggle>
           </ng-container>
           <ng-container *ngSwitchCase="'store_status.selling.quantity'">
-            <mat-form-field appearance="outline"> <input matInput min="0" type="number" value="{{element.store_status[objectKeys(element.store_status)[0]].selling.quantity}}"
-                (change)="onQtyChange(element, column, $event)">
+            <mat-form-field appearance="outline"> <input matInput min="0" type="number"
+                value="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.selling.quantity}}"
+                (change)="onQtyChange(element, column, $event, 'near_mint')">
             </mat-form-field>
           </ng-container>
           <ng-container *ngSwitchCase="'buylist_price'">
             {{ calculateBuylistPrice(element.market_price) | number:'1.2-2' }}
           </ng-container>
           <ng-container *ngSwitchCase="'pos_id'">
-        {{element.store_status[objectKeys(element.store_status)[0]].pos_id}}
+            {{element.store_status[objectKeys(element.store_status)[0]].near_mint.pos_id}}
           </ng-container>
           <ng-container *ngSwitchCase="'ecom_pid'">
-            {{element.store_status[objectKeys(element.store_status)[0]].ecom_pid}}
-              </ng-container>
+            {{element.store_status[objectKeys(element.store_status)[0]].near_mint.ecom_pid}}
+          </ng-container>
           <ng-container *ngSwitchDefault>
             {{ getNestedValue(element, column) }}
           </ng-container>
@@ -46,11 +52,38 @@
       </td>
     </ng-container>
 
-  
+    <ng-container matColumnDef="expandedDetail">
+      <td mat-cell *matCellDef="let element" [attr.colspan]="displayedColumns.length + 1">
+        <ng-container *ngFor="let condition of [ 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']">
+          <p> {{ condition | titlecase }}: Sell | Sell QTY | Buy | Buy QTY</p>
+          <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, 'selling', $event, condition)"
+            [checked]="element.store_status[condition]?.selling?.enabled"></mat-slide-toggle>
+          <mat-form-field appearance="outline">
+            <input matInput min="0" type="number"
+              [value]="element.store_status[condition]?.selling?.quantity"
+              (change)="onQtyChange(element, 'selling', $event, condition)">
+          </mat-form-field>
+    
+          <mat-slide-toggle #buyToggle (change)="onCheckboxChange(element, 'buying', $event, condition)"
+            [checked]="element.store_status[condition]?.buying?.enabled"></mat-slide-toggle>
+          <mat-form-field appearance="outline">
+            <input matInput min="0" type="number"
+              [value]="element.store_status[condition]?.buying?.quantity"
+              (change)="onQtyChange(element, 'buying', $event, condition)">
+          </mat-form-field>
+        </ng-container>
+      </td>
+    </ng-container>
+
+
+
+
 
     <!-- Header and Row Declarations -->
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
     <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="example-detail-row"></tr> -->
+
   </table>
   <mat-paginator [length]="totalLength" [pageSizeOptions]="[10, 20, 100]" showFirstLastButtons></mat-paginator>
 </div>
