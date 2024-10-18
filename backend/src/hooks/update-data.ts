@@ -21,7 +21,7 @@ const fetchGames = async (context: HookContext) => {
 
   for (const game of games) {
     const existingGame = await context.app.service('games').find({
-      query: { 'external_id.tcgcsv_id': game.categoryId }
+      query: { 'external_id.tcgcsv_id': Number(game.categoryId)}
     })
 
     if (existingGame.total == 0 && ![21, 69, 70, 82].includes(Number(game.categoryId))) {
@@ -56,20 +56,23 @@ const fetchSets = async (context: HookContext) => {
     const setPromises = groupsData.flatMap(({ game, groups }) =>
       groups.map(async (group: any) => {
         const existingSet = await context.app.service('sets').find({
-          query: { game_id: game._id, ['external_id.tcgcsv_id']: group.groupId }
+          query: { game_id: game._id, ['external_id.tcgcsv_id']: Number(group.groupId) }
         })
 
         if (existingSet.total === 0) {
           await context.app.service('sets').create({
             game_id: game._id,
             name: group.name,
-            code: group.abbreviation,
-            external_id: { tcgcsv_id: group.groupId }
+            code: typeof group.abbreviation == 'string' ? (group.abbreviation as string) : '',
+            external_id: { tcgcsv_id: Number(group.groupId) }
           })
         } else if (existingSet.total === 1) {
-          await context.app.service('sets').patch(existingSet.data[0]._id as string ,{
-            code: group.abbreviation as string
-          })
+     
+          if (typeof group.abbreviation == 'string') {
+            await context.app.service('sets').patch(existingSet.data[0]._id as string, {
+              code: group.abbreviation as string
+            })
+          }
         }
       })
     )
@@ -194,12 +197,11 @@ export const processProductsAndPrices = async (context: HookContext) => {
                 game_id: set.game_id,
                 set_id: set._id,
                 // set_name: set.name,
-                anniversary: set.name.includes('Anniversary') ? true : false,
+                anniversary: set.name.includes('Anniversary Tournament') ? true : false,
                 pre_release:
                   set.name.includes('Pre-Release') || set.name.includes('Prerelease') ? true : false,
                 promo: set.name.match(/\bPromo\b/) || set.name.match(/\bPromos\b/) ? true : false
               }))
-
 
               const prices = priceResponse.data.results
               return { products, prices }
@@ -227,15 +229,18 @@ export const processProductsAndPrices = async (context: HookContext) => {
           if (!foundProduct) continue
 
           const newProduct = extractProductData(foundProduct)
-        //  if (foundProduct.pre_release || foundProduct.anniversary){
-        //     console.log(foundProduct)
+          //  if (foundProduct.pre_release || foundProduct.anniversary){
+          //     console.log(foundProduct)
 
-        //   }
+          //   }
 
           newProduct.name += foundProduct.pre_release ? ' Pre-Release Event' : ''
           newProduct.name += foundProduct.anniversary ? ' Anniversary Event' : ''
-          newProduct.name += foundProduct.promo ? ' Promo' : ''
+          newProduct.name += (foundProduct.promo && newProduct.rarity !== 'Promo') ? ' Promo' : ''
 
+         
+         
+          let rarity = newProduct.rarity != undefined ? `, ${newProduct.rarity}` : ""
 
 
           if (
@@ -244,27 +249,46 @@ export const processProductsAndPrices = async (context: HookContext) => {
             newProduct.name.includes('Token')
           ) {
             if (
-              newProduct.name.includes(newProduct.collector_number) ||
+              newProduct.name.includes(removeLeadingZeros(newProduct.collector_number)) ||
               newProduct.collector_number == undefined
             ) {
-              newProduct.name += ` (${price.subTypeName}, ${newProduct.rarity})`
-             // nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
-
+              newProduct.name += ` (${price.subTypeName}${rarity})`
+              // nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
             } else if (newProduct.collector_number != undefined) {
-              newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}, ${newProduct.rarity})`
-            //  nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
+              newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}${rarity})`
+              //  nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
             } else {
               // console.log(newProduct)
             }
           }
 
-          
 
+          const existingNameData = await context.app.service('products').find({
+            query: {
+              name: newProduct.name
+            }
+          })
+
+          if (existingNameData.total == 1) {
+            if(existingNameData.data[0].set_id.toString() != newProduct.set_id.toString()){
+              const set = await context.app.service('sets').find({
+                query: {
+                  _id: newProduct.set_id
+                }
+              })
+          //  console.log(set)
+
+              let code = (set.data[0].code == '' || set.data[0].code == undefined) ? set.data[0].name : set.data[0].code
+              code = (code === 'POP') ? set.data[0].name : code
+              newProduct.name += ` (${code})`
+          }
+          } else if (existingNameData.total > 1) {
+            console.log(existingNameData.data)
+          }
           const existingProductData = await context.app.service('products').find({
             query: {
               'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id),
               name: newProduct.name
-
             }
           })
           // const settingsData = await context.app.service('settings').find()
@@ -281,7 +305,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
           if (existingProductData.total === 1) {
             const existingProduct = existingProductData.data[0] as Products
-           // console.log(existingProductData.data[0].name)
+            // console.log(existingProductData.data[0].name)
 
             //   if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
             //  console.log('updating price')
@@ -300,10 +324,10 @@ export const processProductsAndPrices = async (context: HookContext) => {
             })
             //  }
           } else if (existingProductData.total > 1) {
-            console.log('found too many')
-            console.log(existingProductData.data)
-          } else if (existingProductData.total === 0){
-            console.log('no match')
+           // console.log('found too many')
+          //  console.log(existingProductData.data)
+          } else if (existingProductData.total === 0) {
+        //    console.log('no match')
             newProduct.market_price = newPrice.market_price
             newProduct.low_price = newPrice.low_price
             newProduct.high_price = newPrice.high_price
@@ -425,14 +449,23 @@ export const processProductsAndPrices = async (context: HookContext) => {
     const { extendedData, name, url } = foundProduct
     const categoryId = foundProduct.categoryId || 0
 
-    if (extendedData.length > 2 && rarity !== '') {
+    const isPresale = foundProduct.presaleInfo.isPresale == true ? true : false;
+
+    if (isPresale) {
+      return 'Presale'
+    }
+
+    if (rarity !== '') {      
+      return 'Single Cards'
+    }
+  
+    const extendedName = extendedData.length > 0 ? extendedData[0].name : '' //kinda hacky. 
+
+    if (extendedName.includes('Number')){
       return 'Single Cards'
     }
 
-    const extendedName = extendedData.name || ''
-
-    if (extendedName.includes('Token')) return 'Single Cards'
-    if (rarity === 'L') return 'Single Cards'
+    if (extendedName.includes('Token')) return 'Single Cards' //might not do anything
 
     // Direct keyword checks for single card
     if (
@@ -442,6 +475,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
       name.includes('Land') ||
       name.includes('Art Card') ||
       name.includes('Checklist Card') ||
+      name.includes('Decklist Card') ||
       url.includes('art-series')
     ) {
       return 'Single Cards'
@@ -485,7 +519,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
       if (yearMatch) return 'Promotion Cards'
     }
 
-    if ((name.includes('Tournament Pack') && categoryId !== 1) || name.includes('Promo Pack'))
+    if ((name.includes('Tournament Pack') && categoryId !== 1) || name.includes('Promo Pack') || name.includes('Promotional'))
       return 'Promotion Cards'
 
     // Direct keyword checks for other categories
@@ -504,17 +538,37 @@ export const processProductsAndPrices = async (context: HookContext) => {
       name.includes('Gift Edition')
     )
       return 'Bundles'
+
+    if (name.includes('Spindown ')) {
+      return 'Spindown Dice'
+    }
     if (name.includes('Starter Set') || name.includes('Starter Kit') || name.includes('Clash Pack'))
       return 'Starter Kits'
     if (name.includes('Prerelease')) return 'Prerelease Packs'
     if (name.includes('Secret Lair')) return 'Secret Lair Drop'
 
     // Check for rarity-based single card
-    if (rarity) return 'Single Cards - Leak'
+   // if (rarity) return 'Single Cards - Leak'
 
     // Default case
     return 'Sealed'
   }
+
+  const removeLeadingZeros = (str: string) => {
+
+    if ( str == undefined) {
+      return "undefined"
+    }
+    // Check if it contains a '/'
+    if (str.includes('/')) {
+        // Normalize both parts if there's a '/'
+        const parts = str.split('/');
+        return parts.map(part => part.replace(/^0+/, '')).join('/');
+    } else {
+        // Otherwise just remove leading zeros from the single number
+        return str.replace(/^0+/, '');
+    }
+}
 
   fetchProducts()
 }

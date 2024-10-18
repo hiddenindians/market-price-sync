@@ -290,8 +290,9 @@ export class ManageTCGProductsComponent implements OnInit {
           console.error('Error processing product:', product, error)
         }
       })
-    )
 
+    )
+console.log(noMatch)
     const csv = Papa.unparse(priceChanges)
     this.downloadBlob(csv, 'tcg_prices.csv', 'text/csv;charset=utf-8')
     // showLargeChanges(largeChanges);

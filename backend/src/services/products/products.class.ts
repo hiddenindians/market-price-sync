@@ -63,6 +63,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       collection.createIndex({collector_number: 1})
       collection.createIndex({sort_number: 1})
       collection.createIndex({'external_id.tcgcsv_id': 1})
+      collection.createIndex({name: 1})
 
       //collection.createIndex({name: 'text'})
       
