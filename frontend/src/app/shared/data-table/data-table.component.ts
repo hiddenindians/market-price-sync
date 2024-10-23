@@ -17,6 +17,7 @@ import { CommonModule } from '@angular/common'
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator'
 import { MatSlideToggle, MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
 import { MatInputModule } from '@angular/material/input'
+import { MatCardModule } from '@angular/material/card';
 @Component({
   selector: 'app-data-table',
   standalone: true,
@@ -26,7 +27,7 @@ import { MatInputModule } from '@angular/material/input'
     MatSortModule,
     MatPaginatorModule,
     MatSlideToggleModule,
-    MatInputModule
+    MatInputModule, MatCardModule
   ],
   animations: [
     trigger('detailExpand', [
@@ -54,17 +55,17 @@ export class DataTableComponent implements OnChanges {
   @Output() sellToggle = new EventEmitter<{ id: string; storeId: string; value: boolean, condition: string }>()
   @Output() buyQuantity = new EventEmitter<{ id: string; storeId: string; value: number, condition: string }>()
   @Output() sellQuantity = new EventEmitter<{ id: string; storeId: string; value: number, condition: string }>()
-  displayedColumnsWithExpand = [...this.displayedColumns, 'expand']
   headerMapping: { [key: string]: string } = {
-    'store_status.buying.enabled': 'Buylist Enabled',
-    'store_status.buying.quantity': 'Buylist Quantity',
-    'store_status.selling.enabled': 'Selling Enabled',
-    'store_status.selling.quantity': 'Selling Quantity',
+
     name: 'Name',
     collector_number: 'Collector Number',
     market_price: 'Market Price',
     image_url: 'Image',
-    buylist_price: 'Buylist Price'
+    buylist_price: 'Buylist Price',
+    'store_status.buying.enabled': 'Buylist Enabled',
+    'store_status.buying.quantity': 'Buylist Quantity',
+    'store_status.selling.enabled': 'Selling Enabled',
+    'store_status.selling.quantity': 'Selling Quantity',
     // Add more mappings as needed
   }
 
@@ -114,9 +115,11 @@ export class DataTableComponent implements OnChanges {
         value: value,
         condition: condition
       })
+      console.log(condition)
+console.log(element.store_status[this.objectKeys(element.store_status)[0]][condition])
 
       if (value > 0) {
-        element.store_status[this.objectKeys(element.store_status)[0]].condition.selling.enabled = true;
+        element.store_status[this.objectKeys(element.store_status)[0]][condition].selling.enabled = true;
 
         this.sellToggle.emit({
           id: element._id,
@@ -133,7 +136,7 @@ export class DataTableComponent implements OnChanges {
         condition: condition
       })
       if (value > 0) {
-        element.store_status[this.objectKeys(element.store_status)[0]].condition.buying.enabled = true;
+        element.store_status[this.objectKeys(element.store_status)[0]][condition].buying.enabled = true;
 
         this.buyToggle.emit({
           id: element._id,
