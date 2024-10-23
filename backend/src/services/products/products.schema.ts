@@ -327,7 +327,8 @@ export const productsQuerySchema = Type.Intersect(
         })
       ),
       $limit: Type.Optional(Type.Number()),
-      $skip: Type.Optional(Type.Number())
+      $skip: Type.Optional(Type.Number()),
+      $or: Type.Optional(Type.Array(Type.Object({})))
     })
   ],
   {

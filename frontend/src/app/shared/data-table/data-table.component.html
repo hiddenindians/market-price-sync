@@ -14,27 +14,28 @@
             <img [src]="getNestedValue(element, column)" alt="{{getNestedValue(element, 'name')}}"
               style="width: 50px; height: auto;">
           </ng-container>
+          <ng-container *ngIf="element.type !== 'Single Cards'">
+            <ng-container *ngSwitchCase="'store_status.buying.enabled'">
+              <mat-slide-toggle
+                [checked]="element.store_status[objectKeys(element.store_status)[0]].near_mint.buying.enabled"
+                (change)="onCheckboxChange(element, column, $event, 'near_mint')"></mat-slide-toggle>
+            </ng-container>
+            <ng-container *ngSwitchCase="'store_status.buying.quantity'">
+              <mat-form-field appearance="outline"> <input matInput min="0" type="number"
+                  value="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.buying.quantity}}"
+                  (change)="onQtyChange(element, column, $event, 'near_mint')">
+              </mat-form-field> </ng-container>
 
-          <ng-container *ngSwitchCase="'store_status.buying.enabled'">
-            <mat-slide-toggle
-              checked="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.buying.enabled}}"
-              (change)="onCheckboxChange(element, column, $event, 'near_mint')"></mat-slide-toggle>
-          </ng-container>
-          <ng-container *ngSwitchCase="'store_status.buying.quantity'">
-            <mat-form-field appearance="outline"> <input matInput min="0" type="number"
-                value="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.buying.quantity}}"
-                (change)="onQtyChange(element, column, $event, 'near_mint')">
-            </mat-form-field> </ng-container>
-
-          <ng-container *ngSwitchCase="'store_status.selling.enabled'">
-            <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, column, $event, 'near_mint')"
-              checked="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.selling.enabled}}"></mat-slide-toggle>
-          </ng-container>
-          <ng-container *ngSwitchCase="'store_status.selling.quantity'">
-            <mat-form-field appearance="outline"> <input matInput min="0" type="number"
-                value="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.selling.quantity}}"
-                (change)="onQtyChange(element, column, $event, 'near_mint')">
-            </mat-form-field>
+            <ng-container *ngSwitchCase="'store_status.selling.enabled'">
+              <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, column, $event, 'near_mint')"
+                [checked]="element.store_status[objectKeys(element.store_status)[0]].near_mint.selling.enabled"></mat-slide-toggle>
+            </ng-container>
+            <ng-container *ngSwitchCase="'store_status.selling.quantity'">
+              <mat-form-field appearance="outline"> <input matInput min="0" type="number"
+                  value="{{element.store_status[objectKeys(element.store_status)[0]].near_mint.selling.quantity}}"
+                  (change)="onQtyChange(element, column, $event, 'near_mint')">
+              </mat-form-field>
+            </ng-container>
           </ng-container>
           <ng-container *ngSwitchCase="'buylist_price'">
             {{ calculateBuylistPrice(element.market_price) | number:'1.2-2' }}
@@ -52,37 +53,91 @@
       </td>
     </ng-container>
 
-    <ng-container matColumnDef="expandedDetail">
+    <!-- <ng-container matColumnDef="expandedDetail">
       <td mat-cell *matCellDef="let element" [attr.colspan]="displayedColumns.length + 1">
+        {{element.type}}
+        <div *ngIf="element.type == 'Single Cards'">
+
         <ng-container *ngFor="let condition of [ 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']">
           <p> {{ condition | titlecase }}: Sell | Sell QTY | Buy | Buy QTY</p>
           <mat-slide-toggle #sellToggle (change)="onCheckboxChange(element, 'selling', $event, condition)"
-            [checked]="element.store_status[condition]?.selling?.enabled"></mat-slide-toggle>
+            checked="{{element.store_status[objectKeys(element.store_status)[0]][condition].selling?.enabled}}"></mat-slide-toggle>
           <mat-form-field appearance="outline">
             <input matInput min="0" type="number"
-              [value]="element.store_status[condition]?.selling?.quantity"
+              [value]="element.store_status[objectKeys(element.store_status)[0]][condition].selling?.quantity"
               (change)="onQtyChange(element, 'selling', $event, condition)">
           </mat-form-field>
     
           <mat-slide-toggle #buyToggle (change)="onCheckboxChange(element, 'buying', $event, condition)"
-            [checked]="element.store_status[condition]?.buying?.enabled"></mat-slide-toggle>
+          checked="{{element.store_status[objectKeys(element.store_status)[0]][condition].buying?.enabled}}"></mat-slide-toggle>
           <mat-form-field appearance="outline">
             <input matInput min="0" type="number"
-              [value]="element.store_status[condition]?.buying?.quantity"
-              (change)="onQtyChange(element, 'buying', $event, condition)">
+            [value]="element.store_status[objectKeys(element.store_status)[0]][condition].buying?.quantity"
+            (change)="onQtyChange(element, 'buying', $event, condition)">
           </mat-form-field>
-        </ng-container>
+        </ng-container> 
+      </div>
+
+      </td>
+    </ng-container> -->
+
+    <ng-container matColumnDef="expandedDetail">
+      <td mat-cell *matCellDef="let element" [attr.colspan]="displayedColumns.length + 1">
+        <div *ngIf="element.type == 'Single Cards'" class="expanded-detail">
+          <mat-card>
+            <mat-card-header>
+              <mat-card-title>{{element.name}}</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="condition-grid">
+                <ng-container
+                  *ngFor="let condition of ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']">
+                  <mat-card class="condition-card">
+                    <mat-card-header>
+                      <mat-card-title>{{ condition | titlecase }}</mat-card-title>
+                    </mat-card-header>
+                    <mat-card-content>
+                      <div class="condition-controls">
+                        <div class="control-group">
+                          <span>Selling:</span>
+                          <mat-slide-toggle #sellToggle
+                            (change)="onCheckboxChange(element, 'selling', $event, condition)"
+                            [checked]="element.store_status[objectKeys(element.store_status)[0]][condition].selling?.enabled">
+                          </mat-slide-toggle>
+                          <mat-form-field appearance="outline">
+                            <input matInput min="0" type="number"
+                              [value]="element.store_status[objectKeys(element.store_status)[0]][condition].selling?.quantity"
+                              (change)="onQtyChange(element, 'selling', $event, condition)">
+                          </mat-form-field>
+                        </div>
+                        <div class="control-group">
+                          <span>Buying:</span>
+                          <mat-slide-toggle #buyToggle (change)="onCheckboxChange(element, 'buying', $event, condition)"
+                            [checked]="element.store_status[objectKeys(element.store_status)[0]][condition].buying?.enabled">
+                          </mat-slide-toggle>
+                          <mat-form-field appearance="outline">
+                            <input matInput min="0" type="number"
+                              [value]="element.store_status[objectKeys(element.store_status)[0]][condition].buying?.quantity"
+                              (change)="onQtyChange(element, 'buying', $event, condition)">
+                          </mat-form-field>
+                        </div>
+                      </div>
+                    </mat-card-content>
+                  </mat-card>
+                </ng-container>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
       </td>
     </ng-container>
-
-
 
 
 
     <!-- Header and Row Declarations -->
     <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
     <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-    <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="example-detail-row"></tr> -->
+    <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="example-detail-row"></tr>
 
   </table>
   <mat-paginator [length]="totalLength" [pageSizeOptions]="[10, 20, 100]" showFirstLastButtons></mat-paginator>

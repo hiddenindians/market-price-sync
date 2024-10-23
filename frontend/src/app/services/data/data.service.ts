@@ -45,10 +45,10 @@ export class DataService {
 
   
 
-  getProductByPOSId(posId: string, storeId: string) {
+  getProductByPOSId(posId: string, storeId: string, condition: string) {
     return this._feathers.service('products').find({
       query: {
-        [`store_status.${storeId}.pos_id`]: posId
+        [`store_status.${storeId}.${condition}.pos_id`]: posId
       }
     })
   }
@@ -134,7 +134,13 @@ export class DataService {
   getSellingForSet(setId: string, storeId: string, newProductsOnly: boolean) {
     let query: Query = {
       set_id: setId,
-      [`store_status.${storeId}.selling.enabled`]: true,
+      $or: [
+        { [`store_status.${storeId}.near_mint.selling.enabled`]: true },
+        { [`store_status.${storeId}.lightly_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.moderately_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.heavily_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.damaged.selling.enabled`]: true }
+      ],
       $limit: 10000,
       $sort: {
         sort_number: 1,
@@ -143,7 +149,17 @@ export class DataService {
     }
 
     if (newProductsOnly) {
-      query[`store_status.${storeId}.pos_id`] = {$exists: false};  
+      query['$and'] = [
+        {
+          $or: [
+            { [`store_status.${storeId}.near_mint.selling.enabled`]: true, [`store_status.${storeId}.near_mint.pos_id`]: { $exists: false } },
+            { [`store_status.${storeId}.lightly_played.selling.enabled`]: true, [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: false } },
+            { [`store_status.${storeId}.moderately_played.selling.enabled`]: true, [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: false } },
+            { [`store_status.${storeId}.heavily_played.selling.enabled`]: true, [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: false } },
+            { [`store_status.${storeId}.damaged.selling.enabled`]: true, [`store_status.${storeId}.damaged.pos_id`]: { $exists: false } }
+          ]
+        }
+      ];
     }
     return this._feathers.service('products').find({
       query: query
@@ -153,7 +169,13 @@ export class DataService {
   getSellingForGame(gameId: string, storeId: string, newProductsOnly: boolean) {
    let query: Query = {
     game_id: gameId,
-    [`store_status.${storeId}.selling.enabled`]: true,
+    $or: [
+      { [`store_status.${storeId}.near_mint.selling.enabled`]: true },
+      { [`store_status.${storeId}.lightly_played.selling.enabled`]: true },
+      { [`store_status.${storeId}.moderately_played.selling.enabled`]: true },
+      { [`store_status.${storeId}.heavily_played.selling.enabled`]: true },
+      { [`store_status.${storeId}.damaged.selling.enabled`]: true }
+    ],
     $limit: 10000,
     $sort: {
       sort_number: 1,
@@ -161,12 +183,27 @@ export class DataService {
     }
   }
   if (newProductsOnly) {
-    query[`store_status.${storeId}.pos_id`] = {$exists: false};  
+    query['$and'] = [
+      {
+        $or: [
+          { [`store_status.${storeId}.near_mint.selling.enabled`]: true, [`store_status.${storeId}.near_mint.pos_id`]: { $exists: false } },
+          { [`store_status.${storeId}.lightly_played.selling.enabled`]: true, [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: false } },
+          { [`store_status.${storeId}.moderately_played.selling.enabled`]: true, [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: false } },
+          { [`store_status.${storeId}.heavily_played.selling.enabled`]: true, [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: false } },
+          { [`store_status.${storeId}.damaged.selling.enabled`]: true, [`store_status.${storeId}.damaged.pos_id`]: { $exists: false } }
+        ]
+      }
+    ];
   }
     return this._feathers.service('products').find({
       query: query
     })
   }
+
+  
+  
+  
+  
 
   async getGameNameFromId(gameId: string): Promise<string> {
     let toReturn = ''
