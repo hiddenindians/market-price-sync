@@ -17,6 +17,9 @@
         <!-- Download Game CSV button -->
         <button type="button" mat-raised-button color="primary" (click)="exportSellingByGame()">Download Game Selling Enabled CSV</button>
         <mat-checkbox #newOnlyForGame (change)="onNewOnlyToggle($event, 'game')">New Products Only?</mat-checkbox>
+
+        <button type="button" mat-raised-button color="primary" (click)="exportSelling()">Download All Selling Enabled CSV</button>
+
       </div>
   
       <div class="game-set-select-fields">
@@ -42,10 +45,19 @@
           </mat-select>
         </mat-form-field>
       </div>
+      <mat-form-field appearance="fill">
+        <mat-label>Search Products</mat-label>
+        <input matInput (input)="search($event)" placeholder="Search products">
+      </mat-form-field>
+        <mat-form-field appearance="fill">
+          <mat-label>Filter Products</mat-label>
+          <input matInput (input)="filter($event)" placeholder="Filter products">
+        </mat-form-field>
+      
     </form>
   
     <!-- Data table component -->
-    <app-data-table [totalLength]="totalLength" [data]="products" [displayedColumns]="displayedColumns"
+    <app-data-table [totalLength]="totalLength" [data]="filteredProducts" [displayedColumns]="displayedColumns"
       (sortChanged)="onSortChange($event)" (buyToggle)="onBuyToggle($event)" (sellToggle)="onSellToggle($event)"
       (page)="onPageChange($event)" (buyQuantity)="onBuyQuantityChange($event)" (sellQuantity)="onSellQuantityChange($event)">
     </app-data-table>

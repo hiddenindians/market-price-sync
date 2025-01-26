@@ -16,7 +16,7 @@ export const combinedHook = async (context: HookContext) => {
 
 const fetchGames = async (context: HookContext) => {
   console.log('fetching games')
-  const response = await axios.get(`https://tcgcsv.com/categories`)
+  const response = await axios.get(`https://tcgcsv.com/tcgplayer/categories`)
   const games = response.data.results
 
   for (const game of games) {
@@ -45,7 +45,7 @@ const fetchSets = async (context: HookContext) => {
     const groupPromises = games.map(async (game) => {
       const externalId = game.external_id.tcgcsv_id
       try {
-        const response = await axios.get(`https://tcgcsv.com/${externalId}/groups`)
+        const response = await axios.get(`https://tcgcsv.com/tcgplayer/${externalId}/groups`)
         return { game, groups: response.data.results }
       } catch (error) {
         console.log(`Error fetching groups for externalId ${externalId}:`, error)
@@ -188,8 +188,8 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
             try {
               const [productResponse, priceResponse] = await Promise.all([
-                axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/products`),
-                axios.get(`https://tcgcsv.com/${gameId}/${set.external_id.tcgcsv_id}/prices`)
+                axios.get(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/products`),
+                axios.get(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`)
               ])
 
               const products = productResponse.data.results.map((v: any) => ({
@@ -245,7 +245,7 @@ export const processProductsAndPrices = async (context: HookContext) => {
 
           if (
             (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
-            newProduct.type === 'Single Cards - Leak' ||
+            newProduct.type === 'Presale' ||
             newProduct.name.includes('Token')
           ) {
             if (
