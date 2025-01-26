@@ -9,7 +9,7 @@
         </mat-card-header>
         <mat-card-content>
             <p>Price: {{ product.buylist_price }}</p>
-            <p>Available Quantity: {{ product.store_status[storeId].buying.quantity }}</p>
+            <p>Available Quantity: {{ product.store_status[storeId].near_mint.buying.quantity }}</p>
         </mat-card-content>
         <mat-card-actions><button (click)="addToCart(product)">Add to Cart</button></mat-card-actions>
       </mat-card>

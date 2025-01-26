@@ -1,4 +1,6 @@
 <div class="mat-elevation-z8">
+  <!-- <mat-paginator [length]="totalLength" [pageSizeOptions]="[100, 200, 1000]" showFirstLastButtons></mat-paginator> -->
+
   <table mat-table [dataSource]="dataSource" class="mat-table" multiTemplateDataRows matSort
     (matSortChange)="sortData($event)">
 
@@ -94,7 +96,7 @@
                   *ngFor="let condition of ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']">
                   <mat-card class="condition-card">
                     <mat-card-header>
-                      <mat-card-title>{{ condition | titlecase }}</mat-card-title>
+                      <mat-card-title>{{ condition }}</mat-card-title>
                     </mat-card-header>
                     <mat-card-content>
                       <div class="condition-controls">
@@ -109,6 +111,7 @@
                               [value]="element.store_status[objectKeys(element.store_status)[0]][condition].selling?.quantity"
                               (change)="onQtyChange(element, 'selling', $event, condition)">
                           </mat-form-field>
+                         
                         </div>
                         <div class="control-group">
                           <span>Buying:</span>
@@ -120,7 +123,11 @@
                               [value]="element.store_status[objectKeys(element.store_status)[0]][condition].buying?.quantity"
                               (change)="onQtyChange(element, 'buying', $event, condition)">
                           </mat-form-field>
+
                         </div>
+                        <p> POS ID: {{element.store_status[objectKeys(element.store_status)[0]][condition].pos_id }}</p>
+                        <p> eCom PID: {{element.store_status[objectKeys(element.store_status)[0]][condition].ecom_pid }}</p>
+                        <p> eCom VID: {{element.store_status[objectKeys(element.store_status)[0]][condition].ecom_vid }}</p>
                       </div>
                     </mat-card-content>
                   </mat-card>
@@ -140,5 +147,5 @@
     <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="example-detail-row"></tr>
 
   </table>
-  <mat-paginator [length]="totalLength" [pageSizeOptions]="[10, 20, 100]" showFirstLastButtons></mat-paginator>
+  <mat-paginator [length]="totalLength" [pageSizeOptions]="[50, 100, 250, 500, 1000]" showFirstLastButtons></mat-paginator>
 </div>

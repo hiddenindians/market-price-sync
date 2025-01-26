@@ -28,7 +28,7 @@ export class BuylistComponent {
 
   fetchProducts() {
     this._data.getProduct({
-      [`store_status.${this.storeId}.buying.enabled`]: true 
+      [`store_status.${this.storeId}.near_mint.buying.enabled`]: true 
     }).then((data:any) => {
       console.log(data.data)
       this.products = data.data

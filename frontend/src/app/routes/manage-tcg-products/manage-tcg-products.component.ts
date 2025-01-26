@@ -47,17 +47,18 @@ export class ManageTCGProductsComponent implements OnInit {
     'pos_id',
     'ecom_pid'
   ]
-  pageSize: number = 10
+  pageSize: number = 50
   pageIndex: number = 0
   totalLength: number = 0
   defaultSort = { active: 'sort_number', direction: 'ASC' }
   selectedGame!: string
   selectedSet!: string
-  CAD: number = 1.36
+  CAD: number = 1.44
   userSubscription: any
   storeId: string = ''
   newOnlyForSet: boolean = false
   newOnlyForGame: boolean = false
+  filteredProducts: any[] = []
 
   constructor(private data: DataService, private auth: AuthService) {}
 
@@ -78,42 +79,82 @@ export class ManageTCGProductsComponent implements OnInit {
     this.userSubscription.unsubscribe()
   }
 
-  search(term: string) {
+  filter(event: Event) {
+    const inputElement = event.target as HTMLInputElement
+    const term = inputElement.value
     if (!term) {
+      this.filteredProducts = this.products
+    } else {
+      this.filteredProducts = this.products.filter((product) =>
+        product.name.toLowerCase().includes(term.toLowerCase())
+      )
     }
   }
 
-  fetchGames(limit: number, skip: number, sort: { active: string; direction: string } | null) {
-    this.data.getGames(limit, skip, sort).then((data: any) => {
+  search(event: Event) {
+    const inputElement = event.target as HTMLInputElement
+    const term = inputElement.value
+    if (!term) {
+      this.fetchProducts(
+        this.pageSize,
+        this.pageIndex,
+        this.defaultSort,
+        this.selectedSet,
+        this.selectedGame,
+        ''
+      )
+    } else {
+      this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, '', '', term)
+    }
+  }
+
+  async fetchGames(limit: number, skip: number, sort: { active: string; direction: string } | null) {
+    try {
+      const data = await this.data.getGames(limit, skip, sort)
       this.games = data.data
       this.selectedGame = this.games[0]._id
-      this.fetchProducts(this.pageSize, skip, this.defaultSort, '', this.games[0]._id)
-      this.fetchSets(this.selectedGame)
-    })
+      await this.fetchProducts(this.pageSize, skip, this.defaultSort, '', this.games[0]._id)
+      await this.fetchSets(this.selectedGame)
+    } catch (error) {
+      console.error('Error fetching games: ', error)
+    }
   }
 
-  fetchSets(gameId: string) {
-    this.data.getSetsForGame(gameId).then((data: any) => {
+  async fetchSets(gameId: string) {
+    try {
+      const data = await this.data.getSetsForGame(gameId)
       this.sets = data.data
-    })
+    } catch (error) {
+      console.error('Error fetching sets: ', error)
+    }
   }
 
-  fetchProducts(
+  async fetchProducts(
     limit: number,
     skip: number,
     sort: { active: string; direction: string } | null,
     setId?: string,
-    gameId?: string
+    gameId?: string,
+    term?: string
   ) {
     if (sort && sort.direction != '') {
       if (setId && setId != '') {
         this.data.getProductsForSet(setId, limit, skip, sort).then((data: any) => {
+          console.log(data.data)
           this.products = data.data
+          this.filteredProducts = this.products
           this.totalLength = data.total
         })
       } else if (gameId && gameId != '') {
         this.data.getProductsForGame(gameId, limit, skip, sort).then((data: any) => {
           this.products = data.data
+          this.filteredProducts = this.products
+          this.totalLength = data.total
+        })
+      } else if (term && term != '') {
+        this.data.search(term, sort).then((data: any) => {
+          this.products = data.data
+          this.filteredProducts = this.products
           this.totalLength = data.total
         })
       }
@@ -145,54 +186,74 @@ export class ManageTCGProductsComponent implements OnInit {
 
   async processEComCSV(results: any) {
     const products = results.data
-    const batchSize = console.log(results.data.length)
 
     await Promise.all(
       products.map(async (product: any) => {
         try {
-          console.log('tryin')
-          const byIds = await this.data.getProductByEComIDs(
-            this.storeId,
-            product.Internal_ID,
-            product.Internal_Variant_ID
-          )
-          console.log(byIds)
-          if (byIds.total === 1) {
-            //found on ecom details
-            console.log('found on ids')
-            let foundProduct = byIds.data[0]
-            console.log(foundProduct)
+          let name = product['EN_Title_Long']
+          let condition = 'near_mint'
+          let found = false
+          if (name.endsWith('(LP)')) {
+            condition = 'lightly_played'
+            name = name.slice(0, -4) // Remove '(LP)' from the end
+          } else if (name.endsWith('(MP)')) {
+            condition = 'moderately_played'
+            name = name.slice(0, -4) // Remove '(MP)' from the end
+          } else if (name.endsWith('(HP)')) {
+            condition = 'heavily_played'
+            name = name.slice(0, -4) // Remove '(HP)' from the end
+          } else if (name.endsWith('(DMG)')) {
+            condition = 'damaged'
+            name = name.slice(0, -5) // Remove '(DMG)' from the end
+          }
 
-            this.data.patchProduct(foundProduct._id, {
-              [`store_status.${this.storeId}.ecom_pid`]: product['Internal_ID'],
-              [`store_status.${this.storeId}.ecom_vid`]: product['Internal_Variant_ID']
-            })
-          } else {
-            console.log('try again')
-
-            // try {
-            console.log(product['EN_Title_Long'])
-            const byName = await this.data.getProduct({
-              name: product['EN_Title_Long']
-            })
-
-            if (byName.total === 1) {
-              //found by name
-              console.log('found by name')
-
-              let foundProduct = byName.data[0]
-              this.data.patchProduct(foundProduct._id, {
-                [`store_status.${this.storeId}.ecom_pid`]: product['Internal_ID'],
-                [`store_status.${this.storeId}.ecom_vid`]: product['Internal_Variant_ID']
-              })
-            } else {
-              //no match
-              console.log(`No match for ${product['EN_Title_Long']}`)
+          if (!found) {
+            const byIds = await this.data.getProductByEComIDs(
+              this.storeId,
+              condition,
+              product.Internal_ID,
+              product.Internal_Variant_ID
+            )
+            if (byIds.total === 1) {
+              found = true
+              //found on ecom details. do thing
+              console.log('found on ecom ids')
             }
-            // }
-            // catch(error: any){
-            //   console.error(error)
-            // }
+          }
+          if (!found) {
+            const bySystemId = await this.data.getProductByPOSId(
+              product.manufacturer_sku,
+              this.storeId,
+              condition
+            )
+
+            if (bySystemId.total === 1) {
+              found = true
+              console.log('found by systemID')
+              let foundProduct = bySystemId.data[0]
+              await this.data.patchProduct(foundProduct._id, {
+                [`store_status.${this.storeId}.${condition}.ecom_pid`]: product['Internal_ID'],
+                [`store_status.${this.storeId}.${condition}.ecom_vid`]: product['Internal_Variant_ID']
+              })
+            }
+          }
+          if (!found) {
+            const byName = await this.data.getProduct({
+              name: name
+            })
+            if (byName.total === 1) {
+              found = true
+              let foundProduct = byName.data[0]
+              await this.data.patchProduct(foundProduct._id, {
+                [`store_status.${this.storeId}.${condition}.ecom_pid`]: product['Internal_ID'],
+                [`store_status.${this.storeId}.${condition}.ecom_vid`]: product['Internal_Variant_ID']
+              })
+            }
+          }
+
+          if (!found) {
+            //no match
+            console.log(`No match for ${product['EN_Title_Long']}`)
           }
         } catch (error: any) {
           console.error(error)
@@ -219,105 +280,134 @@ export class ManageTCGProductsComponent implements OnInit {
   async processRetailCSV(results: any) {
     const products = results.data
     const priceChanges: {}[] = []
-    const largeChanges: {}[] = []
     const noMatch: {}[] = []
-
     console.log(products)
 
     await Promise.all(
       products.map(async (product: any) => {
         try {
-          let name = product.Item ? product.Item : product.Description
+          let name = product.Item || product.Description || product['Item Description']
+          let systemId = product['System ID'] || product['Item System ID']
+          let quantity = product['Qty.'] || product['Item Metrics Quantity On Hand']
+          let cost = Number(product['Item Avg Cost']) || null
 
-          let condition = 'near_mint';
+          let condition = 'near_mint'
           if (name.endsWith('(LP)')) {
-            condition = 'lightly_played';
-            name = name.slice(0, -4); // Remove '(LP)' from the end
+            condition = 'lightly_played'
+            name = name.slice(0, -5) // Remove ' (LP)' from the end
           } else if (name.endsWith('(MP)')) {
-            condition = 'moderately_played';
-            name = name.slice(0, -4); // Remove '(MP)' from the end
+            condition = 'moderately_played'
+            name = name.slice(0, -5) // Remove ' (MP)' from the end
           } else if (name.endsWith('(HP)')) {
-            condition = 'heavily_played';
-            name = name.slice(0, -4); // Remove '(HP)' from the end
+            condition = 'heavily_played'
+            name = name.slice(0, -5) // Remove ' (HP)' from the end
           } else if (name.endsWith('(DMG)')) {
-            condition = 'damaged';
-            name = name.slice(0, -5); // Remove '(DMG)' from the end
+            condition = 'damaged'
+            name = name.slice(0, -6) // Remove ' (DMG)' from the end
           }
 
-
-          const data = await this.data.getProductByPOSId(product['System ID'], this.storeId, condition)
+          const data = await this.data.getProductByPOSId(systemId, this.storeId, condition)
           if (data.total === 1) {
             //found by System ID
             console.log('foundbysysid')
-      
-            const oldPrice = Number(product.MSRP)
+
+            const oldPrice = Number(product['Price'].replace('$',""))
             let newPrice = this.retailPrice(this.getExchangeRate(data.data[0].market_price))
-            
-            if(condition == 'lightly_played'){
-              newPrice = newPrice * .90
+
+            if (condition == 'lightly_played') {
+              newPrice = newPrice * 0.9
             } else if (condition == 'moderately_played') {
-              newPrice = newPrice * .75
+              newPrice = newPrice * 0.75
             } else if (condition == 'heavily_played') {
-              newPrice = newPrice * .625 
-            } else if (condition == 'damaged'){
-              newPrice = newPrice * .50
+              newPrice = newPrice * 0.625
+            } else if (condition == 'damaged') {
+              newPrice = newPrice * 0.5
             }
-          
-            if (product['Qty.']) {
-              this.data.patchProduct(data.data[0]._id, {
-                // average_cost: product.avg_cost ? product.avg_cost : 0,
-                [`store_status.${this.storeId}.${condition}.selling.enabled`]: true,
-                [`store_status.${this.storeId}.${condition}.selling.quantity`]: product['Qty.']
+
+            let patchBody = {
+              [`store_status.${this.storeId}.${condition}.selling.enabled`]: true,
+              [`store_status.${this.storeId}.${condition}.selling.quantity`]: parseInt(quantity)
+            }
+
+            if(cost !== null ){
+              patchBody[`average_cost`] = cost
+            }
+
+            await this.data.patchProduct(data.data[0]._id, patchBody)
+            
+
+            if (parseInt(quantity) >= 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
+              priceChanges.push({
+                systemId: systemId,
+                manufacturer_sku: systemId,
+                description: data.data[0].name,
+                qty: quantity,
+                rarity: data.data[0].rarity,
+                average_cost: data.data[0].average_cost,
+                price: oldPrice,
+                msrp: oldPrice,
+                new_price: this.round(newPrice),
+                online_price: this.round(newPrice),
+                change: `${((oldPrice-newPrice)/oldPrice)*100}%`
               })
             }
-            priceChanges.push({ ...product, new_price: newPrice })
-
-            if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
-              largeChanges.push({ ...product, new_price: newPrice })
-            }
           } else if (data.total === 0) {
-            console.log('no match on sysID')
-
             const nameData = await this.data.getProduct({
               name: name
             })
             if (nameData.total === 1) {
               // Found by name
-              console.log(condition)
+              console.log(`Name match successful`)
+
               let newPrice = this.retailPrice(this.getExchangeRate(nameData.data[0].market_price))
-              const oldPrice = Number(product.MSRP)
+              const oldPrice = Number(product['Price'].replace('$',""))
 
-              if(condition == 'lightly_played'){
-                newPrice = newPrice * .90
+              if (condition == 'lightly_played') {
+                newPrice = newPrice * 0.9
               } else if (condition == 'moderately_played') {
-                newPrice = newPrice * .75
+                newPrice = newPrice * 0.75
               } else if (condition == 'heavily_played') {
-                newPrice = newPrice * .625 
-              } else if (condition == 'damaged'){
-                newPrice = newPrice * .50
+                newPrice = newPrice * 0.625
+              } else if (condition == 'damaged') {
+                newPrice = newPrice * 0.5
               }
-
 
               let patchBody = {
-                [`store_status.${this.storeId}.${condition}.pos_id`]: product['System ID'],
+                [`store_status.${this.storeId}.${condition}.pos_id`]: systemId,
                 [`store_status.${this.storeId}.${condition}.selling.enabled`]: true
               }
-              if (product['Qty']) {
-                patchBody[`store_status.${this.storeId}.${condition}.selling.quantity`] = product['Qty.']
-              }
-              this.data.patchProduct(nameData.data[0]._id, patchBody)
 
-              if (Math.abs(newPrice - oldPrice) > 0) {
-                priceChanges.push({ ...product, new_price: newPrice })
+              if(cost !== null) {
+                patchBody[`average_cost`] = cost
               }
 
-              if (Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
-                largeChanges.push({ ...product, new_price: newPrice })
+              patchBody[`store_status.${this.storeId}.${condition}.selling.quantity`] = parseInt(
+                quantity
+              )
+
+              await this.data.patchProduct(nameData.data[0]._id, patchBody)
+
+              if (parseInt(quantity) > 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
+                priceChanges.push({
+                  systemId: systemId,
+                  manufacturer_sku: systemId,
+                  description: data.data[0].name,
+                  qty: quantity,
+                  rarity: data.data[0].rarity,
+                  average_cost: data.data[0].average_cost,
+                  price: oldPrice,
+                  msrp: oldPrice,
+                  new_price: this.round(newPrice),
+                  online_price: this.round(newPrice),
+                  change: `${((oldPrice-newPrice)/oldPrice)*100}%`
+                })
               }
-            } else if (nameData.total == 0) {
+            } else if (nameData.total === 0) {
+              console.log(`Name match failed for ${name}`)
               noMatch.push(product)
             } else {
               //multiple matches
+              console.log('multiple on name')
               data.data.forEach((element: { name: any }) => {
                 console.log(`Duplicate value found from search on name: ${element.name} `)
               })
@@ -333,10 +423,9 @@ export class ManageTCGProductsComponent implements OnInit {
         }
       })
     )
-    console.log(noMatch)
+    console.log(`no Match: ${noMatch}`)
     const csv = Papa.unparse(priceChanges)
     this.downloadBlob(csv, 'tcg_prices.csv', 'text/csv;charset=utf-8')
-    // showLargeChanges(largeChanges);
   }
 
   downloadBlob(content: any, filename: string, contentType: string) {
@@ -370,7 +459,16 @@ export class ManageTCGProductsComponent implements OnInit {
     }
   }
 
-  async processProducts(products: any[], storeId: string, newOnly: boolean ) {
+  async exportSelling() {
+    const data = await this.data.getSelling(this.storeId)
+    if (data.total !== 0) {
+      const jsonArray = await this.processProducts(data.data, this.storeId, false)
+      const csv = Papa.unparse(jsonArray)
+      this.downloadBlob(csv, 'tcg_prices_all.csv', 'text/csv;charset=utf-8')
+    }
+  }
+
+  async processProducts(products: any[], storeId: string, newOnly: boolean) {
     return Promise.all(
       products.map(async (product: any) => {
         console.log(product)
@@ -384,21 +482,19 @@ export class ManageTCGProductsComponent implements OnInit {
 
           if (condition == 'lightly_played') {
             object.description += ' (LP)'
-            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice))*.9)
+            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)) * 0.9)
           } else if (condition == 'moderately_played') {
             object.description += ' (MP)'
-            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice))*.75)
-
+            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)) * 0.75)
           } else if (condition == 'heavily_played') {
             object.description += ' (HP)'
-            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice))*.625)
-
+            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)) * 0.625)
           } else if (condition == 'damaged') {
             object.description += ' (DMG)'
-            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice))*.5)
-
+            object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)) * 0.5)
           }
 
+          object.cost = this.round(object.default_price * .6)
           object.msrp = object.default_price
           object.online_price = object.default_price
           object.category = 'Trading Card Games'
@@ -412,10 +508,11 @@ export class ManageTCGProductsComponent implements OnInit {
 
           object.quantity = status?.selling?.quantity || 0
           object.system_id = status?.pos_id || ''
-          object.enabled_on_eCom = 'yes'
+          object.manufacturer_sku = status?.pos_id || ''
+          object.enabled_on_eCom = object.quantity > 0 ? 'yes' : 'no'
           object.ecom_id = status?.ecom_pid || ''
           object.ecom_variant_id = status?.ecom_vid || ''
-          object.ecom_description = `
+          object.ecom_description = `<table>
         ${product.extended_data
           .map((element: { display_name: any; value: any }) => {
             return `
@@ -429,69 +526,85 @@ export class ManageTCGProductsComponent implements OnInit {
               </tr>
             `
           })
-          .join('')}
+          .join('')} 
+              <tr>
+                <td>Game</td>
+                <td>${object.subcategory1}</td>
+              </tr>
+              <tr>
+                <td>Set</td>
+                <td>${object.subcategory3}
+          </table>
+
       `
+          object.ecom_visibility = "S"
+          object.height = 1
+          object.width = 7
+          object.length = 11
+          object.weight = 1
           object.image = product.image_url.slice(-15)
           object.image_URL = product.image_url
           object.condition = condition
+          object.google_product_category = "6997"
+
           return object
         }
 
         //old code
-    //     if (product.type == 'Single Cards') {
-    //       const conditions = ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']
-    //       const result = []
+        //     if (product.type == 'Single Cards') {
+        //       const conditions = ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']
+        //       const result = []
 
-    //       for (const condition of conditions) {
-    //         const status = product.store_status[storeId][condition]
-    //         if (status && status.selling.enabled) {
-    //           const obj = await createObject(condition, status)
-    //           result.push(obj)
-    //         }
-    //       }
+        //       for (const condition of conditions) {
+        //         const status = product.store_status[storeId][condition]
+        //         if (status && status.selling.enabled) {
+        //           const obj = await createObject(condition, status)
+        //           result.push(obj)
+        //         }
+        //       }
 
-    //       return result.length > 0 ? result : []
-    //     } else {
-    //       const status = product.store_status[storeId].near_mint
-    //       return [await createObject('near_mint', status)]
-    //     }
-    //   })
-    // ).then((results) => results.flat())
-          // For non-Single Cards:
-          if (product.type !== 'Single Cards') {
-            const status = product.store_status?.[storeId]?.near_mint;
-            // Filter out items with pos_id if newOnly is true
-            if (newOnly && status?.pos_id) {
-              return []; // Skip items with a pos_id if newOnly is enabled
-            }
-            if (status && status.selling.enabled) {
-              return [await createObject('near_mint', status)];
-            }
-            return [];
+        //       return result.length > 0 ? result : []
+        //     } else {
+        //       const status = product.store_status[storeId].near_mint
+        //       return [await createObject('near_mint', status)]
+        //     }
+        //   })
+        // ).then((results) => results.flat())
+        // For non-Single Cards:
+        if (product.type !== 'Single Cards') {
+          const status = product.store_status?.[storeId]?.near_mint
+          // Filter out items with pos_id if newOnly is true
+          if (newOnly && status?.pos_id) {
+            return [] // Skip items with a pos_id if newOnly is enabled
           }
-    
-          // For Single Cards:
-          if (product.type === 'Single Cards') {
-            const conditions = ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged'];
-            const result = [];
-    
-            for (const condition of conditions) {
-              const status = product.store_status?.[storeId]?.[condition];
-              // Filter out conditions with pos_id if newOnly is true
-              if (newOnly && status?.pos_id) {
-                continue; // Skip this condition if pos_id is present and newOnly is true
-              }
-              if (status && status.selling.enabled) {
-                const obj = await createObject(condition, status);
-                result.push(obj);
-              }
-            }
-    
-            return result.length > 0 ? result : [];
+          if (status && status.selling.enabled && status.selling.quantity > 0) {
+            return [await createObject('near_mint', status)]
           }
           return []
-        })
-      ).then((results) => results.flat());
+        }
+
+        // For Single Cards:
+        if (product.type === 'Single Cards') {
+          const conditions = ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']
+          const result = []
+
+          for (const condition of conditions) {
+            const status = product.store_status?.[storeId]?.[condition]
+            // Filter out conditions with pos_id if newOnly is true
+            if (newOnly && status?.pos_id) {
+              continue // Skip this condition if pos_id is present and newOnly is true
+            }
+            if (status && status.selling.enabled && status.selling.quantity > 0) {
+              const obj = await createObject(condition, status)
+              result.push(obj)
+            }
+          }
+
+          return result.length > 0 ? result : []
+        }
+        return []
+      })
+    ).then((results) => results.flat())
   }
 
   onPageChange(event: PageEvent) {
@@ -507,6 +620,7 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   onSortChange(event: { active: string; direction: string } | null) {
+    console.log(event)
     if (this.selectedSet) {
       if (event) {
         this.defaultSort = event

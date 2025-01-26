@@ -38,12 +38,10 @@ export class DataService {
     })
   }
 
-  getProduct(query: {}) {
-    console.log(query)
-    return this._feathers.service('products').find({ query: query })
+  async getProduct(query: {}) {
+    // console.log(query)
+    return await this._feathers.service('products').find({ query: query })
   }
-
-  
 
   getProductByPOSId(posId: string, storeId: string, condition: string) {
     return this._feathers.service('products').find({
@@ -64,6 +62,9 @@ export class DataService {
       if (sort.direction === 'ASC') {
         direction = 1
       }
+      if (sort.active === 'collector_number') {
+        sort.active = 'sort_number'
+      }
       return this._feathers.service('products').find({
         query: {
           game_id: gameId,
@@ -71,8 +72,7 @@ export class DataService {
             [sort.active]: direction
           },
           $limit: limit,
-          $skip: skip,
-          
+          $skip: skip
         }
       })
     }
@@ -90,47 +90,50 @@ export class DataService {
         direction = 1
       }
 
-     
-
-      if (sort.active === 'collector_number'){
+      if (sort.active === 'collector_number') {
         sort.active = 'sort_number'
-      }
-
-      let sortBody = {
-        [sort.active]: direction
-      }
-
-      if (sort.active === 'market_price'){
-
-        sortBody = {
-          'price.market_price': direction,
-        }
       }
 
       return this._feathers.service('products').find({
         query: {
           set_id: setId,
-          $sort: sortBody,
+          $sort: { 
+            [sort.active]: direction 
+          },
           $limit: limit,
-          $skip: skip,
-          
+          $skip: skip
         }
       })
     }
   }
 
-  getProductByEComIDs(storeId: string, id: string, variantId: string){
-
-
+  getProductByEComIDs(storeId: string, condition: string, id: string, variantId: string) {
     return this._feathers.service('products').find({
       query: {
-        [`store_status.${storeId}.ecom_pid`]: id,
-        [`store_status.${storeId}.ecom_vid`]: variantId
-
+        [`store_status.${storeId}.${condition}.ecom_pid`]: id,
+        [`store_status.${storeId}.${condition}.ecom_vid`]: variantId
       }
     })
   }
 
+  getSelling(storeId: string) {
+    let query: Query = {
+      $or: [
+        { [`store_status.${storeId}.near_mint.selling.enabled`]: true },
+        { [`store_status.${storeId}.lightly_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.moderately_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.heavily_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.damaged.selling.enabled`]: true }
+      ],
+      $limit: 20000,
+      $sort: {
+        sort_number: 1,
+        'external_id.tcgcsv_group_id': 1
+      }
+    }
+
+    return this._feathers.service('products').find({ query: query })
+  }
   getSellingForSet(setId: string, storeId: string, newProductsOnly: boolean) {
     let query: Query = {
       set_id: setId,
@@ -152,14 +155,29 @@ export class DataService {
       query['$and'] = [
         {
           $or: [
-            { [`store_status.${storeId}.near_mint.selling.enabled`]: true, [`store_status.${storeId}.near_mint.pos_id`]: { $exists: false } },
-            { [`store_status.${storeId}.lightly_played.selling.enabled`]: true, [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: false } },
-            { [`store_status.${storeId}.moderately_played.selling.enabled`]: true, [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: false } },
-            { [`store_status.${storeId}.heavily_played.selling.enabled`]: true, [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: false } },
-            { [`store_status.${storeId}.damaged.selling.enabled`]: true, [`store_status.${storeId}.damaged.pos_id`]: { $exists: false } }
+            {
+              [`store_status.${storeId}.near_mint.selling.enabled`]: true,
+              [`store_status.${storeId}.near_mint.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.lightly_played.selling.enabled`]: true,
+              [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.moderately_played.selling.enabled`]: true,
+              [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.heavily_played.selling.enabled`]: true,
+              [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.damaged.selling.enabled`]: true,
+              [`store_status.${storeId}.damaged.pos_id`]: { $exists: false }
+            }
           ]
         }
-      ];
+      ]
     }
     return this._feathers.service('products').find({
       query: query
@@ -167,43 +185,62 @@ export class DataService {
   }
 
   getSellingForGame(gameId: string, storeId: string, newProductsOnly: boolean) {
-   let query: Query = {
-    game_id: gameId,
-    $or: [
-      { [`store_status.${storeId}.near_mint.selling.enabled`]: true },
-      { [`store_status.${storeId}.lightly_played.selling.enabled`]: true },
-      { [`store_status.${storeId}.moderately_played.selling.enabled`]: true },
-      { [`store_status.${storeId}.heavily_played.selling.enabled`]: true },
-      { [`store_status.${storeId}.damaged.selling.enabled`]: true }
-    ],
-    $limit: 10000,
-    $sort: {
-      sort_number: 1,
-      'external_id.tcgcsv_group_id': 1
-    }
-  }
-  if (newProductsOnly) {
-    query['$and'] = [
-      {
-        $or: [
-          { [`store_status.${storeId}.near_mint.selling.enabled`]: true, [`store_status.${storeId}.near_mint.pos_id`]: { $exists: false } },
-          { [`store_status.${storeId}.lightly_played.selling.enabled`]: true, [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: false } },
-          { [`store_status.${storeId}.moderately_played.selling.enabled`]: true, [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: false } },
-          { [`store_status.${storeId}.heavily_played.selling.enabled`]: true, [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: false } },
-          { [`store_status.${storeId}.damaged.selling.enabled`]: true, [`store_status.${storeId}.damaged.pos_id`]: { $exists: false } }
-        ]
+    let query: Query = {
+      game_id: gameId,
+      $or: [
+        { [`store_status.${storeId}.near_mint.selling.enabled`]: true },
+        { [`store_status.${storeId}.lightly_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.moderately_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.heavily_played.selling.enabled`]: true },
+        { [`store_status.${storeId}.damaged.selling.enabled`]: true }
+      ],
+      $limit: 10000,
+      $sort: {
+        sort_number: 1,
+        'external_id.tcgcsv_group_id': 1
       }
-    ];
-  }
+    }
+    if (newProductsOnly) {
+      query['$and'] = [
+        {
+          $or: [
+            {
+              [`store_status.${storeId}.near_mint.selling.enabled`]: true,
+              [`store_status.${storeId}.near_mint.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.lightly_played.selling.enabled`]: true,
+              [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.moderately_played.selling.enabled`]: true,
+              [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.heavily_played.selling.enabled`]: true,
+              [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: false }
+            },
+            {
+              [`store_status.${storeId}.damaged.selling.enabled`]: true,
+              [`store_status.${storeId}.damaged.pos_id`]: { $exists: false }
+            }
+          ]
+        }
+      ]
+    }
     return this._feathers.service('products').find({
       query: query
     })
   }
 
-  
-  
-  
-  
+  async search(term: string, sort: { active: string; direction: string } | null) {
+    return this._feathers.service('products').find({
+      query: {
+        $text: { $search: `"${term}"` }
+        // $sort: sort
+      }
+    })
+  }
 
   async getGameNameFromId(gameId: string): Promise<string> {
     let toReturn = ''
@@ -236,8 +273,8 @@ export class DataService {
     return toReturn
   }
 
-  patchProduct(id: string, body: {}) {
-    this._feathers.service('products').patch(id, body)
+  async patchProduct(id: string, body: {}) {
+    await this._feathers.service('products').patch(id, body)
   }
   updateSellingStatus(id: string, storeId: string, enabled: boolean, condition: string) {
     this._feathers.service('products').patch(id, {
@@ -263,19 +300,16 @@ export class DataService {
     })
   }
 
-  createOrder(order: any) {
-    
-  }
+  createOrder(order: any) {}
 }
 
-
 interface Query {
-  [key: string]: any; // Allow any additional MongoDB properties
-  set_id?: string;
-  game_id?: string;
-  $limit: number;
+  [key: string]: any // Allow any additional MongoDB properties
+  set_id?: string
+  game_id?: string
+  $limit: number
   $sort?: {
-    sort_number: number;
-    'external_id.tcgcsv_group_id': number;
-  };
+    sort_number: number
+    'external_id.tcgcsv_group_id': number
+  }
 }
