@@ -320,7 +320,8 @@ export const processProductsAndPrices = async (context: HookContext) => {
               low_price: newPrice.low_price,
               high_price: newPrice.high_price,
               mid_price: newPrice.mid_price,
-              direct_low_price: newPrice.direct_low_price
+              direct_low_price: newPrice.direct_low_price,
+              type: newProduct.type
             })
             //  }
           } else if (existingProductData.total > 1) {
