@@ -29,16 +29,20 @@ import { Observable, map, shareReplay } from 'rxjs'
 export class AppComponent {
   title = 'Market Price Sync'
   private auth = inject(AuthService)
-  private breakpointObserver = inject(BreakpointObserver);
+  private breakpointObserver = inject(BreakpointObserver)
+
+  sidenavOpen = true
 
   ngOnInit() {
     this.auth.reauthenticate()
   }
 
+  toggleSidenav() {
+    this.sidenavOpen = !this.sidenavOpen
+  }
 
-  isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
-    .pipe(
-      map(result => result.matches),
-      shareReplay()
-    );
+  isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset).pipe(
+    map((result) => result.matches),
+    shareReplay()
+  )
 }

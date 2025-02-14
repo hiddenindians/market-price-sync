@@ -249,7 +249,12 @@ export const productsPatchSchema = Type.Intersect(
       Type.Object({
         direct_low_price: Type.Number()
       })
-    )
+    ),
+    Type.Partial(
+      Type.Object({
+        type: Type.String()
+      })
+    ),
   ],
   {
     $id: 'ProductsPatch'

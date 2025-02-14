@@ -1,13 +1,17 @@
+img {
+  transition: transform .5s;
+  position: relative;  
+  z-index: 1;         
+}
+
 img:hover {
-    transform: scale(4);
+  transform: scale(4);
+  z-index: 9999;     
 }
 
-img{
-    transition: transform .5s;
-}
-
-.overflow{
-    overflow: visible;
+.overflow {
+  overflow: visible;
+  position: relative;  
 }
 .expanded-detail {
     padding: 20px;
