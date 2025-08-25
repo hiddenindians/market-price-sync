@@ -25,6 +25,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       default: 10,
       max: 500000
     },
+    multi: ['create'],
     Model: app.get('mongodbClient').then((db) => db.collection('sets')).then( (collection) => {
       collection.createIndex({'external_id.tcgcsv_id': 1}, {unique: true})
       return collection
