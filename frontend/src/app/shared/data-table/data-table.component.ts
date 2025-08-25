@@ -55,17 +55,18 @@ export class DataTableComponent implements OnChanges {
   @Output() sellToggle = new EventEmitter<{ id: string; storeId: string; value: boolean, condition: string }>()
   @Output() buyQuantity = new EventEmitter<{ id: string; storeId: string; value: number, condition: string }>()
   @Output() sellQuantity = new EventEmitter<{ id: string; storeId: string; value: number, condition: string }>()
+  
+  
   headerMapping: { [key: string]: string } = {
-
     name: 'Name',
     collector_number: 'Collector Number',
     market_price: 'Market Price',
     image_url: 'Image',
     buylist_price: 'Buylist Price',
-    'store_status.buying.enabled': 'Buylist Enabled',
-    'store_status.buying.quantity': 'Buylist Quantity',
-    'store_status.selling.enabled': 'Selling Enabled',
-    'store_status.selling.quantity': 'Selling Quantity',
+    'store_status.near_mint.buying.enabled': 'Buylist Enabled',
+    'store_status.near_mint.buying.quantity': 'Buylist Quantity',
+    'store_status.near_mint.selling.enabled': 'Selling Enabled',
+    'store_status.near_mint.selling.quantity': 'Selling Quantity',
     // Add more mappings as needed
   }
 

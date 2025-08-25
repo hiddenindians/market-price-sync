@@ -1,0 +1,15 @@
+
+> mps@0.0.0 dev
+> nodemon -x ts-node src/index.ts
+
+[33m[nodemon] 3.1.2[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: ts,json[39m
+[32m[nodemon] starting `ts-node src/index.ts`[39m
+warn: Publishing all events to all authenticated users. See `channels.ts` and https://dove.feathersjs.com/api/channels.html for more information.
+(node:85767) [DEP0044] DeprecationWarning: The `util.isArray` API is deprecated. Please use `Array.isArray()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:85767) [DEP0055] DeprecationWarning: The `util.isRegExp` API is deprecated. Please use `arg instanceof RegExp` instead.
+(node:85767) [DEP0047] DeprecationWarning: The `util.isDate` API is deprecated.  Please use `arg instanceof Date` instead.
+info: Feathers app listening on http://localhost:3030

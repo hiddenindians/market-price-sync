@@ -21,6 +21,7 @@ const conditionSchema = Type.Object({
       quantity: Type.Optional(Type.Number())
     })
   ),
+  average_cost: Type.Optional(Type.Number()),
   pos_id: Type.Optional(Type.String()),
   ecom_pid: Type.Optional(Type.String()),
   ecom_vid: Type.Optional(Type.String())
@@ -93,7 +94,9 @@ export const productsSchema = Type.Object(
             }),
             pos_id: Type.Optional(Type.String()),
             ecom_pid: Type.Optional(Type.String()),
-            ecom_vid: Type.Optional(Type.String())
+            ecom_vid: Type.Optional(Type.String()),
+            average_cost: Type.Optional(Type.Number())
+
           }),
           lightly_played: Type.Object({
             selling: Type.Object({
@@ -106,7 +109,8 @@ export const productsSchema = Type.Object(
             }),
             pos_id: Type.Optional(Type.String()),
             ecom_pid: Type.Optional(Type.String()),
-            ecom_vid: Type.Optional(Type.String())
+            ecom_vid: Type.Optional(Type.String()),
+            average_cost: Type.Optional(Type.Number())
           }),
           moderately_played: Type.Object({
             selling: Type.Object({
@@ -119,7 +123,8 @@ export const productsSchema = Type.Object(
             }),
             pos_id: Type.Optional(Type.String()),
             ecom_pid: Type.Optional(Type.String()),
-            ecom_vid: Type.Optional(Type.String())
+            ecom_vid: Type.Optional(Type.String()),
+            average_cost: Type.Optional(Type.Number())
           }),
           heavily_played: Type.Object({
             selling: Type.Object({
@@ -132,7 +137,8 @@ export const productsSchema = Type.Object(
             }),
             pos_id: Type.Optional(Type.String()),
             ecom_pid: Type.Optional(Type.String()),
-            ecom_vid: Type.Optional(Type.String())
+            ecom_vid: Type.Optional(Type.String()),
+            average_cost: Type.Optional(Type.Number())
           }),
           damaged: Type.Object({
             selling: Type.Object({
@@ -145,7 +151,8 @@ export const productsSchema = Type.Object(
             }),
             pos_id: Type.Optional(Type.String()),
             ecom_pid: Type.Optional(Type.String()),
-            ecom_vid: Type.Optional(Type.String())
+            ecom_vid: Type.Optional(Type.String()),
+            average_cost: Type.Optional(Type.Number())
           })
         })
       )

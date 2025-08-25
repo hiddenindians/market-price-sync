@@ -53,7 +53,7 @@ export class ManageTCGProductsComponent implements OnInit {
   defaultSort = { active: 'sort_number', direction: 'ASC' }
   selectedGame!: string
   selectedSet!: string
-  CAD: number = 1.44
+  CAD: number = 1.37
   userSubscription: any
   storeId: string = ''
   newOnlyForSet: boolean = false
@@ -162,49 +162,65 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   importRetailCSV(event: Event) {
+    console.time('building retail json object')
     const element = event.currentTarget as HTMLInputElement
     let fileList: FileList | null = element.files
     if (fileList) {
       Papa.parse(fileList[0], {
         header: true,
         skipEmptyLines: true,
-        complete: (results) => this.processRetailCSV(results)
+        complete: (results) => {
+          console.timeEnd('building retail json object')
+          this.processRetailCSV(results)
+        }
       })
     }
   }
   importEComCSV(event: Event) {
+    console.time('building ecom json object')
     const element = event.currentTarget as HTMLInputElement
     let fileList: FileList | null = element.files
     if (fileList) {
       Papa.parse(fileList[0], {
         header: true,
         skipEmptyLines: true,
-        complete: (results) => this.processEComCSV(results)
+        complete: (results) => {
+          console.timeEnd('building ecom json object')
+          this.processEComCSV(results)
+        }
       })
     }
   }
 
   async processEComCSV(results: any) {
+    console.time('processing ecom json object')
     const products = results.data
 
     await Promise.all(
       products.map(async (product: any) => {
         try {
+          let category = product['EN_Category_3']
+          if (category !== 'Single Cards') {
+            return
+          }
+
           let name = product['EN_Title_Long']
           let condition = 'near_mint'
           let found = false
           if (name.endsWith('(LP)')) {
+            console.log(name)
             condition = 'lightly_played'
-            name = name.slice(0, -4) // Remove '(LP)' from the end
+            name = name.slice(0, -5) // Remove ' (LP)' from the end
+            console.log(name)
           } else if (name.endsWith('(MP)')) {
             condition = 'moderately_played'
-            name = name.slice(0, -4) // Remove '(MP)' from the end
+            name = name.slice(0, -5) // Remove ' (MP)' from the end
           } else if (name.endsWith('(HP)')) {
             condition = 'heavily_played'
-            name = name.slice(0, -4) // Remove '(HP)' from the end
+            name = name.slice(0, -5) // Remove ' (HP)' from the end
           } else if (name.endsWith('(DMG)')) {
             condition = 'damaged'
-            name = name.slice(0, -5) // Remove '(DMG)' from the end
+            name = name.slice(0, -6) // Remove ' (DMG)' from the end
           }
 
           if (!found) {
@@ -238,6 +254,7 @@ export class ManageTCGProductsComponent implements OnInit {
             }
           }
           if (!found) {
+            console.log('by name: ' + name)
             const byName = await this.data.getProduct({
               name: name
             })
@@ -260,14 +277,21 @@ export class ManageTCGProductsComponent implements OnInit {
         }
       })
     )
+    console.timeEnd('processing ecom json object')
     alert('done processing')
   }
   getExchangeRate(price: number) {
-    return price * this.CAD
+    if (price == -1) {
+      return -1
+    } else {
+      return price * this.CAD
+    }
   }
 
   retailPrice(price: number): number {
-    if (price <= 0.25) {
+    if (price == -1) {
+      return -1
+    } else if (price <= 0.25) {
       return 0.25
     } else if (price > 0.25 && price <= 0.35) {
       return 0.35
@@ -278,6 +302,7 @@ export class ManageTCGProductsComponent implements OnInit {
     }
   }
   async processRetailCSV(results: any) {
+    console.time('processing retail json object')
     const products = results.data
     const priceChanges: {}[] = []
     const noMatch: {}[] = []
@@ -290,6 +315,9 @@ export class ManageTCGProductsComponent implements OnInit {
           let systemId = product['System ID'] || product['Item System ID']
           let quantity = product['Qty.'] || product['Item Metrics Quantity On Hand']
           let cost = Number(product['Item Avg Cost']) || null
+          let price = product['Price']
+            ? Number(product['Price'].replace('$', ''))
+            : Number(product['Item Metrics Price'])
 
           let condition = 'near_mint'
           if (name.endsWith('(LP)')) {
@@ -311,7 +339,7 @@ export class ManageTCGProductsComponent implements OnInit {
             //found by System ID
             console.log('foundbysysid')
 
-            const oldPrice = Number(product['Price'].replace('$',""))
+            const oldPrice = price
             let newPrice = this.retailPrice(this.getExchangeRate(data.data[0].market_price))
 
             if (condition == 'lightly_played') {
@@ -329,12 +357,12 @@ export class ManageTCGProductsComponent implements OnInit {
               [`store_status.${this.storeId}.${condition}.selling.quantity`]: parseInt(quantity)
             }
 
-            if(cost !== null ){
-              patchBody[`average_cost`] = cost
+            if (cost !== null) {
+              patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
             }
 
             await this.data.patchProduct(data.data[0]._id, patchBody)
-            
+            console.log(data.data[0].store_status[this.storeId][condition].average_cost)
 
             if (parseInt(quantity) >= 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
               priceChanges.push({
@@ -343,12 +371,12 @@ export class ManageTCGProductsComponent implements OnInit {
                 description: data.data[0].name,
                 qty: quantity,
                 rarity: data.data[0].rarity,
-                average_cost: data.data[0].average_cost,
+                average_cost: data.data[0].store_status[this.storeId][condition].average_cost,
                 price: oldPrice,
                 msrp: oldPrice,
                 new_price: this.round(newPrice),
                 online_price: this.round(newPrice),
-                change: `${((oldPrice-newPrice)/oldPrice)*100}%`
+                change: `${((oldPrice - newPrice) / oldPrice) * 100}%`
               })
             }
           } else if (data.total === 0) {
@@ -360,7 +388,7 @@ export class ManageTCGProductsComponent implements OnInit {
               console.log(`Name match successful`)
 
               let newPrice = this.retailPrice(this.getExchangeRate(nameData.data[0].market_price))
-              const oldPrice = Number(product['Price'].replace('$',""))
+              const oldPrice = price
 
               if (condition == 'lightly_played') {
                 newPrice = newPrice * 0.9
@@ -377,29 +405,28 @@ export class ManageTCGProductsComponent implements OnInit {
                 [`store_status.${this.storeId}.${condition}.selling.enabled`]: true
               }
 
-              if(cost !== null) {
-                patchBody[`average_cost`] = cost
+              if (cost !== null) {
+                patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
               }
 
-              patchBody[`store_status.${this.storeId}.${condition}.selling.quantity`] = parseInt(
-                quantity
-              )
+              patchBody[`store_status.${this.storeId}.${condition}.selling.quantity`] = parseInt(quantity)
 
               await this.data.patchProduct(nameData.data[0]._id, patchBody)
 
+              console.log(nameData.data[0].store_status[this.storeId][condition].average_cost)
               if (parseInt(quantity) > 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
                 priceChanges.push({
                   systemId: systemId,
                   manufacturer_sku: systemId,
-                  description: data.data[0].name,
+                  description: nameData.data[0].name,
                   qty: quantity,
-                  rarity: data.data[0].rarity,
-                  average_cost: data.data[0].average_cost,
+                  rarity: nameData.data[0].rarity,
+                  average_cost: nameData.data[0].store_status[this.storeId][condition].average_cost,
                   price: oldPrice,
                   msrp: oldPrice,
                   new_price: this.round(newPrice),
                   online_price: this.round(newPrice),
-                  change: `${((oldPrice-newPrice)/oldPrice)*100}%`
+                  change: `${((oldPrice - newPrice) / oldPrice) * 100}%`
                 })
               }
             } else if (nameData.total === 0) {
@@ -423,7 +450,11 @@ export class ManageTCGProductsComponent implements OnInit {
         }
       })
     )
-    console.log(`no Match: ${noMatch}`)
+
+    for (const no of noMatch) {
+      console.log(`no Match: ${no}`)
+    }
+    console.timeEnd('processing retail json object')
     const csv = Papa.unparse(priceChanges)
     this.downloadBlob(csv, 'tcg_prices.csv', 'text/csv;charset=utf-8')
   }
@@ -494,15 +525,15 @@ export class ManageTCGProductsComponent implements OnInit {
             object.default_price = this.round(this.retailPrice(this.getExchangeRate(marketPrice)) * 0.5)
           }
 
-          object.cost = this.round(object.default_price * .6)
+          object.cost = object.default_price >= 1 ? this.round(object.default_price * 0.6) : 0.05
           object.msrp = object.default_price
           object.online_price = object.default_price
           object.category = 'Trading Card Games'
 
           object.subcategory1 = await this.data.getGameNameFromId(product.game_id)
-          object.subcategory2 = product.type
+          object.subcategory2 = 'Single Cards'
 
-          if (product.type === 'Single Cards') {
+          if (product.type === 'Single Cards' || product.type === 'Presale') {
             object.subcategory3 = await this.data.getSetNameFromId(product.set_id)
           }
 
@@ -512,32 +543,29 @@ export class ManageTCGProductsComponent implements OnInit {
           object.enabled_on_eCom = object.quantity > 0 ? 'yes' : 'no'
           object.ecom_id = status?.ecom_pid || ''
           object.ecom_variant_id = status?.ecom_vid || ''
-          object.ecom_description = `<table>
-        ${product.extended_data
-          .map((element: { display_name: any; value: any }) => {
-            return `
-              <tr>
-                <td>
-                  ${element.display_name}
-                </td>
-                <td>
-                  ${element.value}
-                </td>
-              </tr>
-            `
-          })
-          .join('')} 
-              <tr>
-                <td>Game</td>
-                <td>${object.subcategory1}</td>
-              </tr>
-              <tr>
-                <td>Set</td>
-                <td>${object.subcategory3}
-          </table>
-
+          const rawHTML = `<table>
+  ${product.extended_data
+    .map((element: { display_name: any; value: any }) => {
+      return `
+        <tr>
+          <td>${element.display_name}</td>
+          <td>${element.value}</td>
+        </tr>
       `
-          object.ecom_visibility = "S"
+    })
+    .join('')} 
+    <tr><td>Condition</td><td>${condition.replace('_', ' ')}</td></tr>         
+    <tr><td>Game</td><td>${object.subcategory1}</td></tr>
+    <tr><td>Set</td><td>${object.subcategory3}</td></tr>
+</table>`
+
+          // Replace commas and optionally line breaks
+          const safeHTML = rawHTML
+            .replace(/,/g, '&#44;') // escape commas
+            .replace(/\r?\n|\r/g, ' ') // optional: remove line breaks
+
+          object.ecom_description = safeHTML
+          object.ecom_visibility = 'S'
           object.height = 1
           object.width = 7
           object.length = 11
@@ -545,7 +573,7 @@ export class ManageTCGProductsComponent implements OnInit {
           object.image = product.image_url.slice(-15)
           object.image_URL = product.image_url
           object.condition = condition
-          object.google_product_category = "6997"
+          object.google_product_category = '6997'
 
           return object
         }

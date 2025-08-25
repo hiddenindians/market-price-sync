@@ -24,6 +24,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       default: 10,
       max: 500000
     },
+    multi: ['create'],
     Model: app.get('mongodbClient').then((db) => db.collection('games'))
   }
 }

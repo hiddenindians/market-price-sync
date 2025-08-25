@@ -18,6 +18,11 @@ import type { Application } from '../../declarations'
 import { ProductsService, getOptions } from './products.class'
 import { productsPath, productsMethods } from './products.shared'
 import { filterStoreStatus } from '../../hooks/filter-store-status'
+import { returnOnlyId } from '../../hooks/return-only-id'
+
+
+
+
 
 export * from './products.class'
 export * from './products.schema'
@@ -29,7 +34,7 @@ export const products = (app: Application) => {
     // A list of all methods this service exposes externally
     methods: productsMethods,
     // You can add additional custom events to be sent to clients here
-    events: []
+    events: [],
   })
   // Initialize hooks
   app.service(productsPath).hooks({
@@ -59,6 +64,7 @@ export const products = (app: Application) => {
     },
     after: {
       all: [],
+      create: [returnOnlyId],
       find: [filterStoreStatus],
     },
     error: {
