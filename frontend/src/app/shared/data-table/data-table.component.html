@@ -10,7 +10,7 @@
       <td mat-cell class="overflow" *matCellDef="let element">
         <ng-container [ngSwitch]="column">
         <ng-container *ngSwitchCase="'name'"> 
-          @if(element.name.includes('Foil')) {
+          @if(element.name.includes('Foil')|| element.name.includes('Holofoil') || element.name.includes('Rainbow')){
             <span class="rainbow-foil">{{element.name}}</span>
           } @else {
             {{element.name}}

@@ -1,2 +1,3 @@
 node_modules
 /mps.product_backup.json
+mps.products.*

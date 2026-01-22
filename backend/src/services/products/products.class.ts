@@ -66,6 +66,7 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       collection.createIndex({name: 1})
       collection.createIndex({name: 'text'})
       collection.createIndex({market_price: 1})
+  collection.createIndex({ game_id: 1, rarity: 1, print: 1, finish: 1 })
 
       //collection.createIndex({name: 'text'})
       

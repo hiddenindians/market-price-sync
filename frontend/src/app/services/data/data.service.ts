@@ -55,24 +55,33 @@ export class DataService {
     gameId: string,
     limit: number,
     skip: number,
-    sort: { active: string; direction: string } | null
+    sort: { active: string; direction: string } | null,
+    filters: ProductsFilterQuery = {}
   ) {
     let direction = -1
     if (sort != null) {
       if (sort.direction === 'ASC') {
         direction = 1
       }
-      if (sort.active === 'collector_number') {
-        sort.active = 'sort_number'
-      }
+      const sortField = sort.active === 'collector_number' ? 'sort_number' : sort.active
       return this._feathers.service('products').find({
         query: {
           game_id: gameId,
           $sort: {
-            [sort.active]: direction
+            [sortField]: direction
           },
           $limit: limit,
-          $skip: skip
+          $skip: skip,
+          ...(filters.rarities?.length ? { rarities: filters.rarities } : {}),
+          ...(filters.prints?.length ? { prints: filters.prints } : {}),
+          ...(filters.finishes?.length ? { finishes: filters.finishes } : {}),
+          ...(filters.events?.length ? { events: filters.events } : {}),
+          ...(filters.onlyEvents ? { onlyEvents: true } : {}),
+          ...(filters.excludeEvents ? { excludeEvents: true } : {}),
+          ...(filters.onlyPromo ? { onlyPromo: true } : {}),
+          ...(filters.excludePromo ? { excludePromo: true } : {}),
+          ...(filters.minPrice != null ? { minPrice: filters.minPrice } : {}),
+          ...(filters.maxPrice != null ? { maxPrice: filters.maxPrice } : {})
         }
       })
     }
@@ -82,7 +91,8 @@ export class DataService {
     setId: string,
     limit: number,
     skip: number,
-    sort: { active: string; direction: string } | null
+    sort: { active: string; direction: string } | null,
+    filters: ProductsFilterQuery = {}
   ) {
     let direction = -1
     if (sort != null) {
@@ -90,18 +100,26 @@ export class DataService {
         direction = 1
       }
 
-      if (sort.active === 'collector_number') {
-        sort.active = 'sort_number'
-      }
+      const sortField = sort.active === 'collector_number' ? 'sort_number' : sort.active
 
       return this._feathers.service('products').find({
         query: {
           set_id: setId,
           $sort: { 
-            [sort.active]: direction 
+            [sortField]: direction 
           },
           $limit: limit,
-          $skip: skip
+          $skip: skip,
+          ...(filters.rarities?.length ? { rarities: filters.rarities } : {}),
+          ...(filters.prints?.length ? { prints: filters.prints } : {}),
+          ...(filters.finishes?.length ? { finishes: filters.finishes } : {}),
+          ...(filters.events?.length ? { events: filters.events } : {}),
+          ...(filters.onlyEvents ? { onlyEvents: true } : {}),
+          ...(filters.excludeEvents ? { excludeEvents: true } : {}),
+          ...(filters.onlyPromo ? { onlyPromo: true } : {}),
+          ...(filters.excludePromo ? { excludePromo: true } : {}),
+          ...(filters.minPrice != null ? { minPrice: filters.minPrice } : {}),
+          ...(filters.maxPrice != null ? { maxPrice: filters.maxPrice } : {})
         }
       })
     }
@@ -233,12 +251,72 @@ export class DataService {
     })
   }
 
-  async search(term: string, sort: { active: string; direction: string } | null) {
+  async search(
+    term: string,
+    sort: { active: string; direction: string } | null,
+    filters: ProductsFilterQuery = {},
+    pagination: { limit?: number; skip?: number } = {}
+  ) {
+    const query: Record<string, unknown> = {
+      $text: { $search: `"${term}"` }
+    }
+
+    if (sort) {
+      const direction = sort.direction === 'ASC' ? 1 : -1
+      const sortField = sort.active === 'collector_number' ? 'sort_number' : sort.active
+      query['$sort'] = { [sortField]: direction }
+    }
+
+    if (pagination.limit !== undefined) {
+      query['$limit'] = pagination.limit
+    }
+
+    if (pagination.skip !== undefined) {
+      query['$skip'] = pagination.skip
+    }
+
+    if (filters.rarities?.length) {
+      query['rarities'] = filters.rarities
+    }
+
+    if (filters.prints?.length) {
+      query['prints'] = filters.prints
+    }
+
+    if (filters.finishes?.length) {
+      query['finishes'] = filters.finishes
+    }
+
+    if (filters.events?.length) {
+      query['events'] = filters.events
+    }
+
+    if (filters.onlyEvents) {
+      query['onlyEvents'] = true
+    }
+
+    if (filters.excludeEvents) {
+      query['excludeEvents'] = true
+    }
+
+    if (filters.onlyPromo) {
+      query['onlyPromo'] = true
+    }
+
+    if (filters.excludePromo) {
+      query['excludePromo'] = true
+    }
+
+    if (filters.minPrice != null) {
+      query['minPrice'] = filters.minPrice
+    }
+
+    if (filters.maxPrice != null) {
+      query['maxPrice'] = filters.maxPrice
+    }
+
     return this._feathers.service('products').find({
-      query: {
-        $text: { $search: `"${term}"` }
-        // $sort: sort
-      }
+      query
     })
   }
 
@@ -276,6 +354,16 @@ export class DataService {
   async patchProduct(id: string, body: {}) {
     await this._feathers.service('products').patch(id, body)
   }
+
+  getProductFilters(gameId: string, setId?: string) {
+    const query: { gameId: string; setId?: string } = { gameId }
+    if (setId) {
+      query.setId = setId
+    }
+    return this._feathers.service('products/filters').find({
+      query
+    })
+  }
   updateSellingStatus(id: string, storeId: string, enabled: boolean, condition: string) {
     this._feathers.service('products').patch(id, {
       [`store_status.${storeId}.${condition}.selling.enabled`]: enabled
@@ -312,4 +400,17 @@ interface Query {
     sort_number: number
     'external_id.tcgcsv_group_id': number
   }
+}
+
+interface ProductsFilterQuery {
+  rarities?: string[]
+  prints?: string[]
+  finishes?: string[]
+  events?: string[]
+  onlyEvents?: boolean
+  excludeEvents?: boolean
+  onlyPromo?: boolean
+  excludePromo?: boolean
+  minPrice?: number | null
+  maxPrice?: number | null
 }

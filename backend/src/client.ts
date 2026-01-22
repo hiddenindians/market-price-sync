@@ -50,6 +50,9 @@ export type {
   ProductsPatch
 } from './services/products/products.shared'
 
+import { productFiltersClient } from './services/product-filters/product-filters.shared'
+export type { ProductFiltersResult } from './services/product-filters/product-filters.shared'
+
 import { setsClient } from './services/sets/sets.shared'
 export type { Sets, SetsData, SetsQuery, SetsPatch } from './services/sets/sets.shared'
 
@@ -89,6 +92,7 @@ export const createClient = <Configuration = any,>(
   client.configure(gamesClient)
   client.configure(setsClient)
   client.configure(productsClient)
+  client.configure(productFiltersClient)
   client.configure(pricesClient)
   client.configure(settingsClient)
   client.configure(fetchGamesClient)

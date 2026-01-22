@@ -67,6 +67,8 @@ export const productsSchema = Type.Object(
     upc: Type.Optional(Type.String()),
     text: Type.Optional(Type.String()),
     rarity: Type.Optional(Type.String()),
+    print: Type.Optional(Type.String()),
+  finish: Type.Optional(Type.String()),
     collector_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
     sort_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
     extended_data: Type.Optional(
@@ -78,6 +80,7 @@ export const productsSchema = Type.Object(
         })
       )
     ),
+    event_types: Type.Optional(Type.Array(Type.String())),
     /* Store Specific Settings */
     store_status: Type.Optional(
       Type.Record(
@@ -183,9 +186,12 @@ export const productsDataSchema = Type.Pick(
     'name',
     'short_name',
     'type',
-    'upc',
-    'text',
-    'rarity',
+  'upc',
+  'text',
+  'rarity',
+    'print',
+    'finish',
+  'event_types',
     'collector_number',
     'sort_number',
     'market_price',
@@ -262,6 +268,32 @@ export const productsPatchSchema = Type.Intersect(
         type: Type.String()
       })
     ),
+    Type.Partial(
+      Type.Object({
+        print: Type.String()
+      })
+    ),
+    Type.Partial(
+      Type.Object({
+        finish: Type.String()
+      })
+    ),
+    Type.Partial(
+      Type.Object({
+        collector_number: Type.Union([Type.String(), Type.Number()]),
+        sort_number: Type.Union([Type.String(), Type.Number()])
+      })
+    ),
+    Type.Partial(
+      Type.Object({
+        event_types: Type.Array(Type.String())
+      })
+    ),
+    Type.Partial(
+      Type.Object({
+        set_id: ObjectIdSchema()
+      })
+    ),
   ],
   {
     $id: 'ProductsPatch'
@@ -280,7 +312,12 @@ export const productsQueryProperties = Type.Pick(productsSchema, [
   'external_id',
   'set_id',
   'name',
-  'sort_number'
+  'sort_number',
+  'rarity',
+  'print',
+  'finish',
+  'event_types',
+  'market_price'
 ])
 
 export const productsQuerySchema = Type.Intersect(
@@ -305,6 +342,21 @@ export const productsQuerySchema = Type.Intersect(
           })
         )
       ),
+      rarity: queryProperty(Type.String()),
+      print: queryProperty(Type.String()),
+      finish: queryProperty(Type.String()),
+      rarities: Type.Optional(Type.Array(Type.String())),
+      prints: Type.Optional(Type.Array(Type.String())),
+      finishes: Type.Optional(Type.Array(Type.String())),
+      event_types: queryProperty(Type.Array(Type.String())),
+      market_price: queryProperty(Type.Number()),
+      events: Type.Optional(Type.Array(Type.String())),
+      excludeEvents: Type.Optional(Type.Boolean()),
+  onlyEvents: Type.Optional(Type.Boolean()),
+  excludePromo: Type.Optional(Type.Boolean()),
+  onlyPromo: Type.Optional(Type.Boolean()),
+    minPrice: Type.Optional(Type.Number()),
+    maxPrice: Type.Optional(Type.Number()),
       store_status: queryProperty(Type.Any()),
       // 'store_status': Type.Optional(
       //   Type.Record(

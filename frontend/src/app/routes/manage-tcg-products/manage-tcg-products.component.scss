@@ -1,40 +1,92 @@
-/* Container styling */
 .game-set-select-container {
-  margin: 20px; /* Added margin around the container */
+  margin: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-/* Toolbar styling */
-.mat-toolbar {
-  margin-bottom: 20px; /* Added margin below the toolbar */
+.action-bar {
+  padding: 10px 12px;
 }
 
-/* Flexbox container for form fields */
-.game-set-select-fields {
-  display: flex; /* Flexbox for horizontal alignment */
-  align-items: center; /* Center items vertically */
-  justify-content: space-between; /* Space out items evenly */
-  margin-bottom: 20px; /* Added margin below form fields */
+.action-bar__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Form field styling */
-.game-set-select-fields mat-form-field {
-  flex: 1; /* Make form fields take equal space */
-  margin-right: 16px; /* Added margin to the right of form fields */
+.action-bar__row button,
+.action-bar__row mat-checkbox {
+  flex: 0 0 auto;
 }
 
-/* Flexbox container for actions */
-.form-actions {
-  display: flex; /* Flexbox for horizontal alignment */
-  align-items: center; /* Center items vertically */
-  margin-bottom: 20px; /* Added margin below action buttons */
+.product-filters-card {
+  padding: 12px 16px;
 }
 
-/* Button styling */
-.form-actions button {
-  margin-right: 16px; /* Added margin to the right of buttons */
+.filters-inline {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-/* Checkbox styling */
-.form-actions mat-checkbox {
-  margin-left: 16px; /* Added margin to the left of checkboxes */
+.filters-inline mat-form-field {
+  width: 160px;
+}
+
+.filters-inline mat-form-field:first-of-type {
+  width: 220px;
+}
+
+.filters-inline .full-text {
+  flex: 1 1 200px;
+  min-width: 200px;
+  width: auto;
+}
+
+.filters-inline .compact-field {
+  flex: 0 0 auto;
+}
+
+.filters-inline .clear-price {
+  flex: 0 0 auto;
+}
+
+.filters-inline button.clear-price {
+  height: 48px;
+  padding: 0 16px;
+}
+
+.filters-inline button.inline-export {
+  height: 48px;
+  min-width: 180px;
+}
+
+.filters-inline .mat-mdc-form-field {
+  --mat-form-field-container-height: 42px;
+  --mat-form-field-filled-with-label-container-padding-top: 4px;
+  --mat-form-field-filled-with-label-container-padding-bottom: 4px;
+  --mat-form-field-subscript-text-tracking: 0;
+  font-size: 0.85rem;
+}
+
+.filters-inline .mat-mdc-form-field-flex {
+  min-height: 42px;
+}
+
+.filters-inline .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.filters-inline .mat-mdc-select-trigger,
+.filters-inline .mat-mdc-input-element {
+  line-height: 1.1;
+  padding: 0;
+}
+
+.filters-inline .mat-mdc-form-field-infix {
+  padding-top: 0;
+  padding-bottom: 4px;
 }

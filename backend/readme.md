@@ -27,6 +27,10 @@ This project uses [Feathers](http://feathersjs.com). An open source framework fo
 
 Run `npm test` and all your tests in the `test/` directory will be run.
 
+## Backfill Utilities
+
+After deploying the updated schema, run `npm run backfill:prints` once to populate the new `print` field for existing products.
+
 ## Scaffolding
 
 This app comes with a powerful command line interface for Feathers. Here are a few things it can do:

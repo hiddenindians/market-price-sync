@@ -2,6 +2,14 @@ import { HookContext } from '../declarations'
 import axios from 'axios'
 import { Products } from '../services/products/products.schema'
 import pLimit from 'p-limit'
+import { ObjectId } from 'mongodb'
+import {
+  deriveFinishKey,
+  detectPrintVariant,
+  isFinishKey,
+  isFoilVariantKey,
+  normalizePrint
+} from '../utils/print-normalizer'
 
 const typeKeywords = new Map([
   ['Energy', 'Single Cards'],
@@ -52,6 +60,122 @@ const typeKeywords = new Map([
   ['Secret Lair', 'Secret Lair Drop']
 ])
 
+// Update these keyword lists whenever new naming patterns should count as events or promos.
+const EVENT_KEYWORD_BUCKETS: Record<string, string[]> = {
+  anniversary: ['Anniversary Tournament'],
+  preRelease: ['Pre-Release', 'Prerelease'],
+  release: ['Release Event'],
+  general: ['Finalist', 'Championship', 'Participant', 'New Year Event', '3-on-3 Cup', 'Treasure Cup']
+}
+
+const PROMO_KEYWORDS: string[] = ['Promo', 'Promos', 'Promo Pack', 'Promotional', 'Tournament Pack', 'Secret Lair', 'SDCC']
+
+const tokenize = (value?: string | null): string[] =>
+  (value ?? '')
+    .toString()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+
+const containsKeywordSequence = (sourceTokens: string[], keywordTokens: string[]): boolean => {
+  if (!sourceTokens.length || !keywordTokens.length) {
+    return false
+  }
+
+  if (keywordTokens.length === 1) {
+    return sourceTokens.includes(keywordTokens[0])
+  }
+
+  for (let i = 0; i <= sourceTokens.length - keywordTokens.length; i += 1) {
+    let matches = true
+    for (let j = 0; j < keywordTokens.length; j += 1) {
+      if (sourceTokens[i + j] !== keywordTokens[j]) {
+        matches = false
+        break
+      }
+    }
+    if (matches) {
+      return true
+    }
+  }
+
+  return false
+}
+
+const keywordMatch = (sources: string[], keywords: string[]): boolean => {
+  if (!Array.isArray(sources) || !Array.isArray(keywords) || keywords.length === 0) {
+    return false
+  }
+
+  const sourceTokenSets = sources
+    .map((source) => tokenize(source))
+    .filter((tokens) => tokens.length > 0)
+
+  if (!sourceTokenSets.length) {
+    return false
+  }
+
+  const keywordTokenSets = keywords
+    .map((keyword) => tokenize(keyword))
+    .filter((tokens) => tokens.length > 0)
+
+  if (!keywordTokenSets.length) {
+    return false
+  }
+
+  return keywordTokenSets.some((keywordTokens) =>
+    sourceTokenSets.some((sourceTokens) => containsKeywordSequence(sourceTokens, keywordTokens))
+  )
+}
+
+// --- Rate limiter & metrics for external API calls ---
+const RATE_LIMIT = Number(process.env.TCGCSV_RATE_LIMIT || '10') // requests per second
+const RATE_WINDOW_MS = 1000
+const requestTimestamps: number[] = [] // timestamps in ms of recent requests
+let requestsThisSecond = 0
+let peakRequestsThisSecond = 0
+
+// Periodic metric logging: logs requests per second and peak every REPORT_INTERVAL_MS
+const REPORT_INTERVAL_MS = Number(process.env.TCGCSV_RATE_REPORT_INTERVAL_MS || '5000')
+setInterval(() => {
+  console.info(`[rate] requests last second: ${requestsThisSecond}, peak: ${peakRequestsThisSecond}, limit: ${RATE_LIMIT}/s`)
+  requestsThisSecond = 0
+  peakRequestsThisSecond = 0
+}, REPORT_INTERVAL_MS)
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function waitForRateSlot() {
+  while (true) {
+    const now = Date.now()
+
+    // purge old timestamps outside the window
+    while (requestTimestamps.length && now - requestTimestamps[0] >= RATE_WINDOW_MS) {
+      requestTimestamps.shift()
+    }
+
+    if (requestTimestamps.length < RATE_LIMIT) {
+      requestTimestamps.push(now)
+      // increment metric counters
+      requestsThisSecond++
+      if (requestsThisSecond > peakRequestsThisSecond) peakRequestsThisSecond = requestsThisSecond
+      return
+    }
+
+    // wait until the oldest timestamp falls out of window
+    const wait = RATE_WINDOW_MS - (now - requestTimestamps[0]) + 2
+    await sleep(wait)
+  }
+}
+
+async function rateLimitedGet(url: string, opts: any = {}) {
+  await waitForRateSlot()
+  return axios.get(url, opts)
+}
+
+// --- end rate limiter ---
+
+
 // Main combined hook function
 export const combinedHook = async (context: HookContext) => {
   console.time('Total Execution Time')
@@ -60,6 +184,8 @@ export const combinedHook = async (context: HookContext) => {
   console.time('fetchGames')
   await fetchGames(context)
   console.timeEnd('fetchGames')
+
+// Note: fetchGames will use rateLimitedGet to avoid exceeding API rate limits.
 
   console.time('fetchSets')
   await fetchSets(context)
@@ -93,7 +219,7 @@ export const combinedHook = async (context: HookContext) => {
 // }
 const fetchGames = async (context: HookContext) => {
   console.log('fetching games')
-  const response = await axios.get(`https://tcgcsv.com/tcgplayer/categories`)
+  const response = await rateLimitedGet(`https://tcgcsv.com/tcgplayer/categories`)
   const games = response.data.results
 
   const existingGames = await context.app.service('games').find({ query: {}, paginate: false })
@@ -177,7 +303,7 @@ const fetchSets = async (context: HookContext) => {
 
   const groupPromises = games.map(async (game) => {
     try {
-      const response = await axios.get(`https://tcgcsv.com/tcgplayer/${game.external_id.tcgcsv_id}/groups`)
+      const response = await rateLimitedGet(`https://tcgcsv.com/tcgplayer/${game.external_id.tcgcsv_id}/groups`)
       return { game, groups: response.data.results }
     } catch (error) {
       console.log(`Error fetching groups for game ${game.external_id.tcgcsv_id}:`, error)
@@ -188,6 +314,7 @@ const fetchSets = async (context: HookContext) => {
   const groupsData = await Promise.all(groupPromises)
 
   const allNewSets = []
+  const setsToUpdate = []
 
   for (const { game, groups } of groupsData) {
     const existingSets = await context.app.service('sets').find({
@@ -195,21 +322,52 @@ const fetchSets = async (context: HookContext) => {
       paginate: false
     })
 
-    const existingSetIds = new Set(existingSets.map((s: any) => s.external_id.tcgcsv_id))
+    const existingSetMap = new Map(existingSets.map((s: any) => [s.external_id.tcgcsv_id, s]))
 
-    const newSets = groups
-      .filter((group: any) => !existingSetIds.has(Number(group.groupId)))
-      .map((group: any) => ({
-        game_id: game._id,
-        name: group.name,
-        code: group.abbreviation || '',
-        external_id: { tcgcsv_id: Number(group.groupId) }
-      }))
+    for (const group of groups) {
+      const groupId = Number(group.groupId)
+      const existingSet = existingSetMap.get(groupId)
 
-    allNewSets.push(...newSets)
+      if (existingSet) {
+        // Check if existing set needs updating
+        const needsUpdate = 
+          existingSet.name !== group.name || 
+          existingSet.code !== (group.abbreviation || '')
+
+        if (needsUpdate) {
+          setsToUpdate.push({
+            id: existingSet._id,
+            data: {
+              name: group.name,
+              code: group.abbreviation || ''
+            }
+          })
+        }
+      } else {
+        // Create new set
+        allNewSets.push({
+          game_id: game._id,
+          name: group.name,
+          code: group.abbreviation || '',
+          external_id: { tcgcsv_id: groupId }
+        })
+      }
+    }
   }
+
+  // Create new sets
   if (allNewSets.length > 0) {
+    console.log(`Creating ${allNewSets.length} new sets`)
     await context.app.service('sets').create(allNewSets)
+  }
+
+  // Update existing sets
+  if (setsToUpdate.length > 0) {
+    console.log(`Updating ${setsToUpdate.length} existing sets`)
+    const updatePromises = setsToUpdate.map(({ id, data }) =>
+      context.app.service('sets').patch(id, data)
+    )
+    await Promise.all(updatePromises)
   }
 }
 
@@ -258,6 +416,8 @@ const extractProductData = (foundProduct: FoundProduct): NewProduct => {
   newProduct.type = determineProductType(foundProduct, newProduct.rarity || '')
 
   newProduct.last_updated = Date.now()
+  newProduct.print = 'base'
+  newProduct.finish = 'base'
   return newProduct as NewProduct
 }
 
@@ -653,7 +813,7 @@ const processProductsAndPrices = async (context: HookContext) => {
   const newProductsMap = new Map<string, Map<string, boolean>>()
 
   // Step 3: Fetch Products & Prices from API concurrently.
-  let limit = pLimit(5) // Adjust concurrency as needed
+  let limit = pLimit(2) // Adjust concurrency as needed
   let batchSize = 200
 
   //Step 4: Fetch Products & Prices from API
@@ -670,21 +830,30 @@ const processProductsAndPrices = async (context: HookContext) => {
 
           try {
             const [productResponse, priceResponse] = await Promise.all([
-              axios.get(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/products`),
-              axios.get(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`)
+              rateLimitedGet(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/products`),
+              rateLimitedGet(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`)
             ])
 
             return {
-              products: productResponse.data.results.map((p: any) => ({
-                ...p,
-                game_id: set.game_id,
-                set_id: set._id,
-                anniversary: set.name.includes('Anniversary Tournament') ? true : false,
-                pre_release:
-                  set.name.includes('Pre-Release') || set.name.includes('Prerelease') ? true : false,
-                promo: set.name.match(/\bPromo\b/) || set.name.match(/\bPromos\b/) ? true : false,
-                release: set.name.includes('Release Event') ? true : false
-              })),
+              products: productResponse.data.results.map((p: any) => {
+                const sources = [set.name ?? '', set.code ?? '', p.name ?? '']
+                const anniversary = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.anniversary)
+                const preRelease = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.preRelease)
+                const release = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.release)
+                const genericEvent = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.general)
+                const promo = keywordMatch(sources, PROMO_KEYWORDS)
+
+                return {
+                  ...p,
+                  game_id: set.game_id,
+                  set_id: set._id,
+                  anniversary,
+                  pre_release: preRelease,
+                  release,
+                  event_keyword: genericEvent,
+                  promo
+                }
+              }),
               prices: priceResponse.data.results
             }
           } catch (error) {
@@ -701,7 +870,16 @@ const processProductsAndPrices = async (context: HookContext) => {
   const allProducts = results.flatMap((r) => r.products)
   const allPrices = results.flatMap((r) => r.prices)
 
-  if (allProducts.length === 0 || allPrices.length === 0) return
+  if (allProducts.length === 0) {
+    console.log('No products fetched from API; aborting product processing.')
+    return
+  }
+
+  if (allPrices.length === 0) {
+    console.warn(`Warning: prices array is empty for this run; proceeding to update ${allProducts.length} products with default price values.`)
+    const sampleProductIds = allProducts.slice(0, 10).map((p: any) => p.productId)
+    console.log('Sample productIds (first 10):', sampleProductIds)
+  }
 
   console.time('Processing Extracted Data')
 
@@ -713,6 +891,63 @@ const processProductsAndPrices = async (context: HookContext) => {
 
   const newProducts = []
   const updatedProducts = []
+  const productsToMigrate = []
+
+  // Step 6: Detect products that need to be migrated between sets
+  console.time('Detect Product Migrations')
+  
+  // Build a map of tcgcsv_id to new set_id from the fetched products
+  const productIdToNewSetMap = new Map<number, string>()
+  for (const prod of allProducts) {
+    productIdToNewSetMap.set(prod.productId, prod.set_id.toString())
+  }
+
+  // Check existing products to see if any need to be moved to different sets
+  for (const existingProduct of existingProducts) {
+    const tcgcsvId = existingProduct.external_id?.tcgcsv_id
+    if (!tcgcsvId) continue
+
+    const newSetId = productIdToNewSetMap.get(tcgcsvId)
+    if (!newSetId) continue // Product no longer exists in API
+
+    const currentSetId = existingProduct.set_id.toString()
+    
+    if (currentSetId !== newSetId) {
+      productsToMigrate.push({
+        id: existingProduct._id.toString(),
+        currentSetId,
+        newSetId,
+        tcgcsvId,
+        name: existingProduct.name
+      })
+    }
+  }
+
+  // Perform the migrations
+  if (productsToMigrate.length > 0) {
+    console.log(`Migrating ${productsToMigrate.length} products between sets`)
+    
+    const migrationPromises = productsToMigrate.map(migration =>
+      limit(async () => {
+        const currentSet = setMap.get(migration.currentSetId)
+        const newSet = setMap.get(migration.newSetId)
+
+        console.log(`Migrating product "${migration.name}" from set "${currentSet?.name}" to "${newSet?.name}"`)
+
+        try {
+          return await context.app.service('products').patch(migration.id, {
+            set_id: new ObjectId(migration.newSetId)
+          })
+        } catch (err) {
+          console.error('Error migrating product', migration.id, { currentSet: currentSet?.name, newSet: newSet?.name, error: err })
+        }
+      })
+    )
+
+    await Promise.all(migrationPromises)
+  }
+  
+  console.timeEnd('Detect Product Migrations')
 
   // In-memory sets for this run:
   // newNames: Set of new product names added in this run.
@@ -724,6 +959,24 @@ const processProductsAndPrices = async (context: HookContext) => {
     if (!prod) continue
 
     let newProduct = extractProductData(prod)
+
+    const finishInfo = normalizePrint(price.subTypeName)
+    const finishKey = deriveFinishKey(finishInfo.key)
+    const finishVariantKey = isFoilVariantKey(finishInfo.key) ? finishInfo.key : null
+
+    const variantInfo = detectPrintVariant({
+      name: prod.name,
+      short_name: prod.cleanName ?? prod.name,
+      extended_data: newProduct.extended_data
+    })
+
+    let printKey = variantInfo.key
+    if (!printKey || printKey === 'base' || isFinishKey(printKey)) {
+      printKey = finishVariantKey ?? 'base'
+    }
+
+    newProduct.print = printKey
+    newProduct.finish = finishKey
 
     // Build a local variable for the external id as a string.
     const extIdStr = newProduct.external_id.tcgcsv_id.toString();
@@ -738,6 +991,14 @@ const processProductsAndPrices = async (context: HookContext) => {
     newProduct.mid_price = price.midPrice ? Number(price.midPrice) : -1
     newProduct.high_price = price.highPrice ? Number(price.highPrice) : -1
     newProduct.direct_low_price = price.directLowPrice ? Number(price.directLowPrice) : -1
+
+  const eventTypes: string[] = []
+  if (prod.pre_release) eventTypes.push('pre_release')
+  if (prod.release) eventTypes.push('release')
+  if (prod.anniversary) eventTypes.push('anniversary')
+  if (prod.event_keyword) eventTypes.push('event')
+  if (prod.promo) eventTypes.push('promo')
+  newProduct.event_types = eventTypes
 
     const rarityText = newProduct.rarity ? `, ${newProduct.rarity}` : ''
     if (
@@ -784,6 +1045,9 @@ const processProductsAndPrices = async (context: HookContext) => {
           data: {
             name: newProduct.name,
             type: newProduct.type,
+            print: printKey,
+            finish: finishKey,
+            event_types: newProduct.event_types,
             market_price: newProduct.market_price,
             low_price: newProduct.low_price,
             mid_price: newProduct.mid_price,
@@ -824,6 +1088,9 @@ const processProductsAndPrices = async (context: HookContext) => {
             data: {
               name: newProduct.name,
               type: newProduct.type,
+              print: printKey,
+              finish: finishKey,
+              event_types: newProduct.event_types,
               market_price: price.marketPrice ? Number(price.marketPrice) : -1,
               low_price: price.lowPrice ? Number(price.lowPrice) : -1,
               mid_price: price.midPrice ? Number(price.midPrice) : -1,
@@ -860,16 +1127,35 @@ const processProductsAndPrices = async (context: HookContext) => {
     batches.push(newProducts.slice(i, i + batchSize))
   }
 
-  await Promise.all(batches.map((batch) => limit(() => context.app.service('products').create(batch))))
+  console.log(`Inserting ${newProducts.length} new products in ${batches.length} batches`)
+  const createPromises = batches.map((batch, idx) =>
+    limit(async () => {
+      try {
+        return await context.app.service('products').create(batch)
+      } catch (err) {
+        console.error(`Error creating product batch ${idx} (size=${batch.length})`, err)
+      }
+    })
+  )
+
+  await Promise.all(createPromises)
 
   // if (newProducts.length > 0) {
   //   await context.app.service('products').create(newProducts)
   // }
   // Step 5: Bulk Update Existing Products
-  console.log('updating existing products')
-  const patchPromises = updatedProducts.map(({ id, data }) =>
-    limit(() => context.app.service('products').patch(id, data))
-  )
+  console.log(`updating existing products: count=${updatedProducts.length}`)
+
+  const safePatch = async (id: string, data: any) => {
+    try {
+      return await context.app.service('products').patch(id, data)
+    } catch (err) {
+      console.error('Error patching product', id, data, err)
+      // If Mongo returns a duplicate-key or validation error, we log it and continue.
+    }
+  }
+
+  const patchPromises = updatedProducts.map(({ id, data }) => limit(() => safePatch(id, data)))
   await Promise.all(patchPromises)
   console.log('done updating existing products')
 
@@ -937,6 +1223,7 @@ interface NewProduct {
   collector_number?: any
   sort_number?: any
   rarity?: string
+  finish?: string
   sub_type?: string
   power?: string
   toughness?: string
@@ -1041,7 +1328,9 @@ interface NewProduct {
   character_name?: string
   planet_name?: string
   location_name?: string
+  event_types?: string[]
   extended_data?: ExtendedData[]
+  print?: string
 }
 
 interface Price {

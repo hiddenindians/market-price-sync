@@ -19,6 +19,7 @@ import { ProductsService, getOptions } from './products.class'
 import { productsPath, productsMethods } from './products.shared'
 import { filterStoreStatus } from '../../hooks/filter-store-status'
 import { returnOnlyId } from '../../hooks/return-only-id'
+import { applyProductFilters } from '../../hooks/apply-product-filters'
 
 
 
@@ -50,7 +51,7 @@ export const products = (app: Application) => {
         schemaHooks.validateQuery(productsQueryValidator),
         schemaHooks.resolveQuery(productsQueryResolver)
       ],
-      find: [],
+  find: [applyProductFilters],
       get: [],
       create: [
         schemaHooks.validateData(productsDataValidator),

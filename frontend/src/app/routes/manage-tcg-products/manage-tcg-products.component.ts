@@ -7,12 +7,11 @@ import { MatSortModule } from '@angular/material/sort'
 import { MatSelectChange, MatSelectModule } from '@angular/material/select'
 import { FormsModule } from '@angular/forms'
 import Papa from 'papaparse'
-import { SelectionChange } from '@angular/cdk/collections'
-import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
 import { MatInputModule } from '@angular/material/input'
 import { MatButtonModule } from '@angular/material/button'
 import { AuthService } from '../../services/auth/auth.service'
 import { MatCheckboxChange, MatCheckboxModule } from '@angular/material/checkbox'
+import { MatCardModule } from '@angular/material/card'
 @Component({
   selector: 'app-manage-tcg-products',
   standalone: true,
@@ -21,11 +20,12 @@ import { MatCheckboxChange, MatCheckboxModule } from '@angular/material/checkbox
     DataTableComponent,
     MatSelectModule,
     MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
-    MatInputModule,
-    MatButtonModule,
-    MatCheckboxModule
+  MatSortModule,
+  MatPaginatorModule,
+  MatInputModule,
+  MatButtonModule,
+  MatCheckboxModule,
+  MatCardModule
   ],
   templateUrl: './manage-tcg-products.component.html',
   styleUrl: './manage-tcg-products.component.scss'
@@ -34,6 +34,12 @@ export class ManageTCGProductsComponent implements OnInit {
   games: any[] = []
   sets: any[] = []
   products: any[] = []
+  rarities: string[] = []
+  finishTypesList: { key: string; label: string }[] = []
+  printVariantsList: { key: string; label: string }[] = []
+  eventTypesList: { key: string; label: string }[] = []
+  eventFilterMode: 'all' | 'only' | 'exclude' = 'all'
+  promoFilterMode: 'all' | 'only' | 'exclude' = 'all'
   displayedColumns: string[] = [
     'image_url',
     'name',
@@ -53,12 +59,23 @@ export class ManageTCGProductsComponent implements OnInit {
   defaultSort = { active: 'sort_number', direction: 'ASC' }
   selectedGame!: string
   selectedSet!: string
-  CAD: number = 1.37
+  selectedRarities: string[] = []
+  selectedFinishes: string[] = []
+  selectedPrintVariants: string[] = []
+  selectedEvents: string[] = []
+  currentFilterTerm: string = ''
+  currentSearchTerm: string = ''
+  minPriceInput: string = ''
+  maxPriceInput: string = ''
+  minPriceFilter: number | null = null
+  maxPriceFilter: number | null = null
+  CAD: number = 1.41
   userSubscription: any
   storeId: string = ''
   newOnlyForSet: boolean = false
   newOnlyForGame: boolean = false
   filteredProducts: any[] = []
+  isExporting = false
 
   constructor(private data: DataService, private auth: AuthService) {}
 
@@ -81,30 +98,30 @@ export class ManageTCGProductsComponent implements OnInit {
 
   filter(event: Event) {
     const inputElement = event.target as HTMLInputElement
-    const term = inputElement.value
-    if (!term) {
-      this.filteredProducts = this.products
-    } else {
-      this.filteredProducts = this.products.filter((product) =>
-        product.name.toLowerCase().includes(term.toLowerCase())
-      )
-    }
+    const term = inputElement.value || ''
+    this.currentFilterTerm = term
+    this.applyLocalSearch()
   }
 
   search(event: Event) {
     const inputElement = event.target as HTMLInputElement
     const term = inputElement.value
+    this.currentSearchTerm = term || ''
     if (!term) {
+      const skip = this.pageIndex * this.pageSize
+      const setId = this.selectedSet || ''
+      const gameId = setId ? '' : this.selectedGame
       this.fetchProducts(
         this.pageSize,
-        this.pageIndex,
+        skip,
         this.defaultSort,
-        this.selectedSet,
-        this.selectedGame,
+        setId,
+        gameId,
         ''
       )
     } else {
-      this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, '', '', term)
+      const skip = this.pageIndex * this.pageSize
+      this.fetchProducts(this.pageSize, skip, this.defaultSort, '', '', term)
     }
   }
 
@@ -112,8 +129,12 @@ export class ManageTCGProductsComponent implements OnInit {
     try {
       const data = await this.data.getGames(limit, skip, sort)
       this.games = data.data
+      if (!this.games.length) {
+        return
+      }
       this.selectedGame = this.games[0]._id
-      await this.fetchProducts(this.pageSize, skip, this.defaultSort, '', this.games[0]._id)
+      await this.fetchFilters(this.selectedGame)
+      await this.fetchProducts(this.pageSize, skip, this.defaultSort, '', this.selectedGame)
       await this.fetchSets(this.selectedGame)
     } catch (error) {
       console.error('Error fetching games: ', error)
@@ -129,6 +150,30 @@ export class ManageTCGProductsComponent implements OnInit {
     }
   }
 
+  async fetchFilters(gameId: string, setId?: string) {
+    try {
+      const response = await this.data.getProductFilters(gameId, setId)
+      this.rarities = response?.rarities ?? []
+      this.finishTypesList = response?.finishes ?? []
+      this.printVariantsList = response?.prints ?? []
+      this.eventTypesList = response?.events ?? []
+
+      this.selectedRarities = this.selectedRarities.filter((rarity) => this.rarities.includes(rarity))
+      const validFinishKeys = new Set(this.finishTypesList.map((finish) => finish.key))
+      this.selectedFinishes = this.selectedFinishes.filter((finish) => validFinishKeys.has(finish))
+      const validPrintKeys = new Set(this.printVariantsList.map((p) => p.key))
+      this.selectedPrintVariants = this.selectedPrintVariants.filter((print) => validPrintKeys.has(print))
+      const validEventKeys = new Set(this.eventTypesList.map((event) => event.key))
+      this.selectedEvents = this.selectedEvents.filter((event) => validEventKeys.has(event))
+    } catch (error) {
+      console.error('Error fetching filters: ', error)
+      this.rarities = []
+      this.finishTypesList = []
+      this.printVariantsList = []
+      this.eventTypesList = []
+    }
+  }
+
   async fetchProducts(
     limit: number,
     skip: number,
@@ -137,28 +182,139 @@ export class ManageTCGProductsComponent implements OnInit {
     gameId?: string,
     term?: string
   ) {
-    if (sort && sort.direction != '') {
-      if (setId && setId != '') {
-        this.data.getProductsForSet(setId, limit, skip, sort).then((data: any) => {
-          console.log(data.data)
-          this.products = data.data
-          this.filteredProducts = this.products
-          this.totalLength = data.total
-        })
-      } else if (gameId && gameId != '') {
-        this.data.getProductsForGame(gameId, limit, skip, sort).then((data: any) => {
-          this.products = data.data
-          this.filteredProducts = this.products
-          this.totalLength = data.total
-        })
-      } else if (term && term != '') {
-        this.data.search(term, sort).then((data: any) => {
-          this.products = data.data
-          this.filteredProducts = this.products
-          this.totalLength = data.total
-        })
-      }
+    if (!sort || sort.direction === '') {
+      return
     }
+
+    const filters = this.currentFilters()
+
+    if (setId && setId !== '') {
+      this.data.getProductsForSet(setId, limit, skip, sort, filters).then((data: any) => {
+        this.products = data.data
+        this.totalLength = data.total ?? data.data?.length ?? 0
+        this.applyLocalSearch()
+      })
+    } else if (gameId && gameId !== '') {
+      this.data.getProductsForGame(gameId, limit, skip, sort, filters).then((data: any) => {
+        this.products = data.data
+        this.totalLength = data.total ?? data.data?.length ?? 0
+        this.applyLocalSearch()
+      })
+    } else if (term && term !== '') {
+      this.data.search(term, sort, filters, { limit, skip }).then((data: any) => {
+        this.products = data.data
+        this.totalLength = data.total ?? data.data?.length ?? 0
+        this.applyLocalSearch()
+      })
+    }
+  }
+
+  applyLocalSearch(term: string = this.currentFilterTerm) {
+    const lowerTerm = term.toString().toLowerCase()
+    if (!lowerTerm) {
+      this.filteredProducts = this.products
+      return
+    }
+
+    this.filteredProducts = this.products.filter((product: any) =>
+      (product.name || '').toString().toLowerCase().includes(lowerTerm)
+    )
+  }
+
+  currentFilters() {
+    const minPrice = this.normalizePriceInput(this.minPriceInput)
+    const maxPrice = this.normalizePriceInput(this.maxPriceInput)
+
+    this.minPriceFilter = minPrice
+    this.maxPriceFilter = maxPrice
+
+    return {
+      rarities: [...this.selectedRarities],
+  prints: [...this.selectedPrintVariants],
+  finishes: [...this.selectedFinishes],
+      events: [...this.selectedEvents],
+      onlyEvents: this.eventFilterMode === 'only',
+      excludeEvents: this.eventFilterMode === 'exclude',
+      onlyPromo: this.promoFilterMode === 'only',
+      excludePromo: this.promoFilterMode === 'exclude',
+      minPrice: minPrice,
+      maxPrice: maxPrice
+    }
+  }
+
+  onFilterSelectionChange() {
+    const skip = this.pageIndex * this.pageSize
+    const setId = this.selectedSet || ''
+    const gameId = setId ? '' : this.selectedGame
+    if (!setId && !gameId) {
+      return
+    }
+    this.fetchProducts(this.pageSize, skip, this.defaultSort, setId, gameId)
+  }
+
+  onEventFilterModeChange(event: MatSelectChange) {
+    const mode = event.value as 'all' | 'only' | 'exclude'
+    this.eventFilterMode = mode
+    const skip = this.pageIndex * this.pageSize
+    const setId = this.selectedSet || ''
+    const gameId = setId ? '' : this.selectedGame
+    if (!setId && !gameId) {
+      return
+    }
+    this.fetchProducts(this.pageSize, skip, this.defaultSort, setId, gameId)
+  }
+
+  onPromoFilterModeChange(event: MatSelectChange) {
+    const mode = event.value as 'all' | 'only' | 'exclude'
+    this.promoFilterMode = mode
+    const skip = this.pageIndex * this.pageSize
+    const setId = this.selectedSet || ''
+    const gameId = setId ? '' : this.selectedGame
+    if (!setId && !gameId) {
+      return
+    }
+    this.fetchProducts(this.pageSize, skip, this.defaultSort, setId, gameId)
+  }
+
+  onPriceFilterChange() {
+    const skip = this.pageIndex * this.pageSize
+    const setId = this.selectedSet || ''
+    const gameId = setId ? '' : this.selectedGame
+
+    if (!setId && !gameId) {
+      if (this.currentSearchTerm) {
+        this.fetchProducts(this.pageSize, skip, this.defaultSort, '', '', this.currentSearchTerm)
+      }
+      return
+    }
+
+    if (this.currentSearchTerm) {
+      this.fetchProducts(this.pageSize, skip, this.defaultSort, '', '', this.currentSearchTerm)
+    } else {
+      this.fetchProducts(this.pageSize, skip, this.defaultSort, setId, gameId)
+    }
+  }
+
+  clearPriceFilters() {
+    this.minPriceInput = ''
+    this.maxPriceInput = ''
+    this.minPriceFilter = null
+    this.maxPriceFilter = null
+    this.onPriceFilterChange()
+  }
+
+  private normalizePriceInput(raw: string): number | null {
+    const trimmed = (raw ?? '').toString().trim()
+    if (!trimmed.length) {
+      return null
+    }
+
+    const numeric = Number(trimmed)
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return null
+    }
+
+    return Math.round(numeric * 100) / 100
   }
 
   importRetailCSV(event: Event) {
@@ -301,6 +457,33 @@ export class ManageTCGProductsComponent implements OnInit {
       return price
     }
   }
+
+  private conditionSuffix(condition: string): string {
+    const map: Record<string, string> = {
+      lightly_played: ' (LP)',
+      moderately_played: ' (MP)',
+      heavily_played: ' (HP)',
+      damaged: ' (DMG)'
+    }
+    return map[condition] ?? ''
+  }
+
+  private adjustPriceForCondition(price: number, condition: string): number {
+    if (price < 0) {
+      return price
+    }
+
+    const multipliers: Record<string, number> = {
+      lightly_played: 0.9,
+      moderately_played: 0.75,
+      heavily_played: 0.625,
+      damaged: 0.5
+    }
+
+    const multiplier = multipliers[condition] ?? 1
+    return price * multiplier
+  }
+
   async processRetailCSV(results: any) {
     console.time('processing retail json object')
     const products = results.data
@@ -341,16 +524,7 @@ export class ManageTCGProductsComponent implements OnInit {
 
             const oldPrice = price
             let newPrice = this.retailPrice(this.getExchangeRate(data.data[0].market_price))
-
-            if (condition == 'lightly_played') {
-              newPrice = newPrice * 0.9
-            } else if (condition == 'moderately_played') {
-              newPrice = newPrice * 0.75
-            } else if (condition == 'heavily_played') {
-              newPrice = newPrice * 0.625
-            } else if (condition == 'damaged') {
-              newPrice = newPrice * 0.5
-            }
+            newPrice = this.adjustPriceForCondition(newPrice, condition)
 
             let patchBody = {
               [`store_status.${this.storeId}.${condition}.selling.enabled`]: true,
@@ -368,7 +542,7 @@ export class ManageTCGProductsComponent implements OnInit {
               priceChanges.push({
                 systemId: systemId,
                 manufacturer_sku: systemId,
-                description: data.data[0].name,
+                description: `${data.data[0].name}${this.conditionSuffix(condition)}`,
                 qty: quantity,
                 rarity: data.data[0].rarity,
                 average_cost: data.data[0].store_status[this.storeId][condition].average_cost,
@@ -376,7 +550,8 @@ export class ManageTCGProductsComponent implements OnInit {
                 msrp: oldPrice,
                 new_price: this.round(newPrice),
                 online_price: this.round(newPrice),
-                change: `${((oldPrice - newPrice) / oldPrice) * 100}%`
+                change: `${((oldPrice - newPrice) / oldPrice) * 100}%`,
+                condition
               })
             }
           } else if (data.total === 0) {
@@ -389,16 +564,7 @@ export class ManageTCGProductsComponent implements OnInit {
 
               let newPrice = this.retailPrice(this.getExchangeRate(nameData.data[0].market_price))
               const oldPrice = price
-
-              if (condition == 'lightly_played') {
-                newPrice = newPrice * 0.9
-              } else if (condition == 'moderately_played') {
-                newPrice = newPrice * 0.75
-              } else if (condition == 'heavily_played') {
-                newPrice = newPrice * 0.625
-              } else if (condition == 'damaged') {
-                newPrice = newPrice * 0.5
-              }
+              newPrice = this.adjustPriceForCondition(newPrice, condition)
 
               let patchBody = {
                 [`store_status.${this.storeId}.${condition}.pos_id`]: systemId,
@@ -418,7 +584,7 @@ export class ManageTCGProductsComponent implements OnInit {
                 priceChanges.push({
                   systemId: systemId,
                   manufacturer_sku: systemId,
-                  description: nameData.data[0].name,
+                  description: `${nameData.data[0].name}${this.conditionSuffix(condition)}`,
                   qty: quantity,
                   rarity: nameData.data[0].rarity,
                   average_cost: nameData.data[0].store_status[this.storeId][condition].average_cost,
@@ -426,7 +592,8 @@ export class ManageTCGProductsComponent implements OnInit {
                   msrp: oldPrice,
                   new_price: this.round(newPrice),
                   online_price: this.round(newPrice),
-                  change: `${((oldPrice - newPrice) / oldPrice) * 100}%`
+                  change: `${((oldPrice - newPrice) / oldPrice) * 100}%`,
+                  condition
                 })
               }
             } else if (nameData.total === 0) {
@@ -664,13 +831,203 @@ export class ManageTCGProductsComponent implements OnInit {
 
   onGameSelectionChange(event: MatSelectChange) {
     this.selectedGame = event.value
-    this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, '', event.value)
+    this.selectedSet = ''
+    this.selectedRarities = []
+  this.selectedFinishes = []
+  this.selectedPrintVariants = []
+    this.selectedEvents = []
+    this.eventFilterMode = 'all'
+    this.promoFilterMode = 'all'
+    this.currentSearchTerm = ''
+    this.minPriceInput = ''
+    this.maxPriceInput = ''
+    this.minPriceFilter = null
+    this.maxPriceFilter = null
+    this.pageIndex = 0
+    this.fetchFilters(this.selectedGame)
+    this.fetchProducts(this.pageSize, 0, this.defaultSort, '', this.selectedGame)
     this.fetchSets(event.value)
+  }
+
+  private getStoreCondition(product: any, condition: string) {
+    if (!product?.store_status) {
+      return {}
+    }
+
+    const storeKey = this.storeId && product.store_status[this.storeId]
+      ? this.storeId
+      : Object.keys(product.store_status)[0]
+
+    if (!storeKey) {
+      return {}
+    }
+
+    return product.store_status[storeKey]?.[condition] ?? {}
+  }
+
+  private buildExportRows(products: any[]) {
+    return products.map((product: any) => {
+      const nearMint = this.getStoreCondition(product, 'near_mint')
+      const events = Array.isArray(product.event_types) ? product.event_types : []
+
+      return {
+        name: product.name ?? '',
+        collector_number: product.collector_number ?? '',
+        rarity: product.rarity ?? '',
+        print: product.print ?? '',
+  finish: product.finish ?? '',
+        market_price: product.market_price ?? '',
+        low_price: product.low_price ?? '',
+        mid_price: product.mid_price ?? '',
+        high_price: product.high_price ?? '',
+        event_types: events.join('|'),
+        is_promo: events.includes('promo') ? 'yes' : 'no',
+        is_pre_release: events.includes('pre_release') ? 'yes' : 'no',
+        is_release: events.includes('release') ? 'yes' : 'no',
+        is_anniversary: events.includes('anniversary') ? 'yes' : 'no',
+        store_pos_id: nearMint.pos_id ?? '',
+        store_ecom_pid: nearMint.ecom_pid ?? '',
+        store_ecom_vid: nearMint.ecom_vid ?? '',
+        store_selling_enabled: nearMint.selling?.enabled ?? false,
+        store_selling_quantity: nearMint.selling?.quantity ?? 0,
+        store_buying_enabled: nearMint.buying?.enabled ?? false,
+        store_buying_quantity: nearMint.buying?.quantity ?? 0
+      }
+    })
+  }
+
+  private sanitizeFileName(value: string) {
+    return (value || 'results').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'results'
+  }
+
+  private filterExportProducts(products: any[]) {
+    if (!this.currentFilterTerm) {
+      return products
+    }
+
+    const normalized = this.currentFilterTerm.toString().toLowerCase()
+    return products.filter((product: any) => (product.name ?? '').toString().toLowerCase().includes(normalized))
+  }
+
+  private resolveExportFilename() {
+    if (this.currentSearchTerm) {
+      return `search_${this.sanitizeFileName(this.currentSearchTerm)}.csv`
+    }
+
+    if (this.selectedSet) {
+      const setName = this.sets.find((set) => set._id === this.selectedSet)?.name ?? this.selectedSet
+      return `set_${this.sanitizeFileName(setName)}.csv`
+    }
+
+    if (this.selectedGame) {
+      const gameName = this.games.find((game) => game._id === this.selectedGame)?.name ?? this.selectedGame
+      return `game_${this.sanitizeFileName(gameName)}.csv`
+    }
+
+    return `products_${Date.now()}.csv`
+  }
+
+  async exportResults() {
+    this.isExporting = true
+    const batchSize = 500
+    const filters = this.currentFilters()
+    const sort = this.defaultSort
+    let skip = 0
+    let total: number | null = null
+    const aggregated: any[] = []
+    const extractBatch = (response: any) => (Array.isArray(response) ? response : response?.data ?? [])
+
+    try {
+      if (this.currentSearchTerm) {
+        while (true) {
+          const response = await this.data.search(this.currentSearchTerm, sort, filters, {
+            limit: batchSize,
+            skip
+          })
+          const batch = extractBatch(response)
+          aggregated.push(...batch)
+          if (typeof response?.total === 'number') {
+            total = response.total
+          }
+
+          const fetchedAllByTotal = total !== null && aggregated.length >= total
+          const fetchedAllByBatch = batch.length < batchSize
+
+          if (!batch.length || fetchedAllByTotal || fetchedAllByBatch) {
+            break
+          }
+          skip += batch.length
+        }
+      } else if (this.selectedSet) {
+        while (true) {
+          const response = await this.data.getProductsForSet(
+            this.selectedSet,
+            batchSize,
+            skip,
+            sort,
+            filters
+          )
+          const batch = extractBatch(response)
+          aggregated.push(...batch)
+          if (typeof response?.total === 'number') {
+            total = response.total
+          }
+
+          const fetchedAllByTotal = total !== null && aggregated.length >= total
+          const fetchedAllByBatch = batch.length < batchSize
+
+          if (!batch.length || fetchedAllByTotal || fetchedAllByBatch) {
+            break
+          }
+          skip += batch.length
+        }
+      } else if (this.selectedGame) {
+        while (true) {
+          const response = await this.data.getProductsForGame(
+            this.selectedGame,
+            batchSize,
+            skip,
+            sort,
+            filters
+          )
+          const batch = extractBatch(response)
+          aggregated.push(...batch)
+          if (typeof response?.total === 'number') {
+            total = response.total
+          }
+
+          const fetchedAllByTotal = total !== null && aggregated.length >= total
+          const fetchedAllByBatch = batch.length < batchSize
+
+          if (!batch.length || fetchedAllByTotal || fetchedAllByBatch) {
+            break
+          }
+          skip += batch.length
+        }
+      }
+
+      if (!aggregated.length) {
+        return
+      }
+
+      const exportProducts = this.filterExportProducts(aggregated)
+      const csvRows = this.buildExportRows(exportProducts)
+      const csv = Papa.unparse(csvRows)
+      const filename = this.resolveExportFilename()
+      this.downloadBlob(csv, filename, 'text/csv;charset=utf-8')
+    } catch (error) {
+      console.error('Error exporting results', error)
+    } finally {
+      this.isExporting = false
+    }
   }
 
   onSetSelectionChange(event: MatSelectChange) {
     this.selectedSet = event.value
-    this.fetchProducts(this.pageSize, this.pageIndex, this.defaultSort, event.value, '')
+    this.currentSearchTerm = ''
+    this.pageIndex = 0
+    this.fetchFilters(this.selectedGame, this.selectedSet)
+    this.fetchProducts(this.pageSize, 0, this.defaultSort, this.selectedSet, '')
   }
 
   onSellToggle(event: { id: string; storeId: string; value: boolean; condition: string }) {

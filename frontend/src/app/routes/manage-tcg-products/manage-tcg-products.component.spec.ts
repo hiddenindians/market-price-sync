@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { ManageTcgProductsComponent } from './manage-tcg-products.component';
+import { ManageTCGProductsComponent } from './manage-tcg-products.component';
 
 describe('ManageTcgProductsComponent', () => {
-  let component: ManageTcgProductsComponent;
-  let fixture: ComponentFixture<ManageTcgProductsComponent>;
+  let component: ManageTCGProductsComponent;
+  let fixture: ComponentFixture<ManageTCGProductsComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ManageTcgProductsComponent]
+  imports: [ManageTCGProductsComponent]
     })
     .compileComponents();
     
-    fixture = TestBed.createComponent(ManageTcgProductsComponent);
+  fixture = TestBed.createComponent(ManageTCGProductsComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
