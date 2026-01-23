@@ -14,9 +14,9 @@ export const gamesSchema = Type.Object(
     name: Type.String(),
     logo: Type.Optional(Type.String()),
     external_id: Type.Object({
-      tcgcsv_id: Type.Optional(Type.Number()),
+      tcgcsv_id: Type.Optional(Type.Number())
     }),
-    enabled: Type.Boolean({default: false}),
+    enabled: Type.Boolean({ default: false })
   },
   { $id: 'Games', additionalProperties: false }
 )
@@ -27,7 +27,7 @@ export const gamesResolver = resolve<Games, HookContext<GamesService>>({})
 export const gamesExternalResolver = resolve<Games, HookContext<GamesService>>({})
 
 // Schema for creating new entries
-export const gamesDataSchema = Type.Pick(gamesSchema, ['name', 'external_id','logo'], {
+export const gamesDataSchema = Type.Pick(gamesSchema, ['name', 'external_id', 'logo'], {
   $id: 'GamesData'
 })
 export type GamesData = Static<typeof gamesDataSchema>
@@ -50,10 +50,9 @@ export const gamesQuerySchema = Type.Object(
     enabled: queryProperty(Type.Boolean()),
     $sort: Type.Optional(
       Type.Object({
-        '_id': Type.Optional(Type.Number()),
+        _id: Type.Optional(Type.Number()),
         'external_id.tcgcsv_id': Type.Optional(Type.Number()),
-        'name': Type.Optional(Type.Number()),
-      
+        name: Type.Optional(Type.Number())
       })
     ),
     $limit: Type.Optional(Type.Number()),

@@ -23,9 +23,7 @@ export const filterStoreStatus = async (context: HookContext) => {
           product.store_status = {}
         }
 
-       
         if (!product.store_status[storeId]) {
-
           // Create the store_id object if it doesn't exist
           product.store_status[storeId] = {
             near_mint: {
@@ -34,8 +32,8 @@ export const filterStoreStatus = async (context: HookContext) => {
             }
           }
 
-            if(product.type === 'Single Cards'){
-              product.store_status[storeId].lightly_played = {
+          if (product.type === 'Single Cards') {
+            product.store_status[storeId].lightly_played = {
               selling: { enabled: false, quantity: 0 },
               buying: { enabled: false, quantity: 0 }
             }
@@ -52,7 +50,6 @@ export const filterStoreStatus = async (context: HookContext) => {
               buying: { enabled: false, quantity: 0 }
             }
           }
-          
 
           // Update the product in the database
           context.app.service('products').patch(product._id, {

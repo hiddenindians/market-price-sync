@@ -62,13 +62,18 @@ export const setsDataValidator = getValidator(setsDataSchema, dataValidator)
 export const setsDataResolver = resolve<Sets, HookContext<SetsService>>({})
 
 // Schema for updating existing entries
-export const setsPatchSchema = Type.Intersect([
-  Type.Partial(Type.Object({
-    code: Type.Optional(Type.String())
-  }) )
-],{
-  $id: 'SetsPatch'
-})
+export const setsPatchSchema = Type.Intersect(
+  [
+    Type.Partial(
+      Type.Object({
+        code: Type.Optional(Type.String())
+      })
+    )
+  ],
+  {
+    $id: 'SetsPatch'
+  }
+)
 export type SetsPatch = Static<typeof setsPatchSchema>
 export const setsPatchValidator = getValidator(setsPatchSchema, dataValidator)
 export const setsPatchResolver = resolve<Sets, HookContext<SetsService>>({})

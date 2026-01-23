@@ -13,13 +13,13 @@ const Roles = {
   ADMIN: 'admin',
   MANAGER: 'manager',
   EMPLOYEE: 'employee'
-} as const;
+} as const
 
 // Main data model schema
 export const userSchema = Type.Object(
   {
     _id: ObjectIdSchema(),
-    email: Type.String( {format: 'email'}),
+    email: Type.String({ format: 'email' }),
     username: Type.String(),
     password: Type.Optional(Type.String()),
     store_id: Type.Optional(ObjectIdSchema()),

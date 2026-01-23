@@ -1,7 +1,7 @@
 // For more information about this file see https://dove.feathersjs.com/guides/cli/authentication.html
 import { AuthenticationService, JWTStrategy } from '@feathersjs/authentication'
 import { LocalStrategy } from '@feathersjs/authentication-local'
-import { Middleware } from 'koa';
+import { Middleware } from 'koa'
 
 import type { Application } from './declarations'
 
@@ -32,7 +32,4 @@ export const authentication = (app: Application) => {
   // };
 
   // app.use(setTokenInCookie);
-
-
-  
 }

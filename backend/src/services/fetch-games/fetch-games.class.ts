@@ -17,9 +17,9 @@ export interface FetchGamesServiceOptions {
 export interface FetchGamesParams extends Params<FetchGamesQuery> {}
 
 // This is a skeleton for a custom service class. Remove or add the methods you need here
-export class FetchGamesService<ServiceParams extends FetchGamesParams = FetchGamesParams>
-  implements ServiceInterface<FetchGames, FetchGamesData, ServiceParams, FetchGamesPatch>
-{
+export class FetchGamesService<
+  ServiceParams extends FetchGamesParams = FetchGamesParams
+> implements ServiceInterface<FetchGames, FetchGamesData, ServiceParams, FetchGamesPatch> {
   constructor(public options: FetchGamesServiceOptions) {}
 
   async find(_params?: ServiceParams): Promise<FetchGames[]> {

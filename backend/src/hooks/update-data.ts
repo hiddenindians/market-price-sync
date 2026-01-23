@@ -10,6 +10,7 @@ import {
   isFoilVariantKey,
   normalizePrint
 } from '../utils/print-normalizer'
+import { ConcurrentPipeline, createRateLimitedAxios } from '../utils/concurrent-pipeline'
 
 const typeKeywords = new Map([
   ['Energy', 'Single Cards'],
@@ -68,7 +69,17 @@ const EVENT_KEYWORD_BUCKETS: Record<string, string[]> = {
   general: ['Finalist', 'Championship', 'Participant', 'New Year Event', '3-on-3 Cup', 'Treasure Cup']
 }
 
-const PROMO_KEYWORDS: string[] = ['Promo', 'Promos', 'Promo Pack', 'Promotional', 'Tournament Pack', 'Secret Lair', 'SDCC']
+const PROMO_KEYWORDS: string[] = [
+  'Promo',
+  'Promos',
+  'Promo Pack',
+  'Promotional',
+  'Tournament Pack',
+  'Secret Lair',
+  'SDCC'
+]
+
+const PROMO_SUFFIX_KEYWORDS: string[] = ['Promo', 'Promos', 'Promo Pack', 'Promotional']
 
 const tokenize = (value?: string | null): string[] =>
   (value ?? '')
@@ -107,17 +118,13 @@ const keywordMatch = (sources: string[], keywords: string[]): boolean => {
     return false
   }
 
-  const sourceTokenSets = sources
-    .map((source) => tokenize(source))
-    .filter((tokens) => tokens.length > 0)
+  const sourceTokenSets = sources.map((source) => tokenize(source)).filter((tokens) => tokens.length > 0)
 
   if (!sourceTokenSets.length) {
     return false
   }
 
-  const keywordTokenSets = keywords
-    .map((keyword) => tokenize(keyword))
-    .filter((tokens) => tokens.length > 0)
+  const keywordTokenSets = keywords.map((keyword) => tokenize(keyword)).filter((tokens) => tokens.length > 0)
 
   if (!keywordTokenSets.length) {
     return false
@@ -129,52 +136,30 @@ const keywordMatch = (sources: string[], keywords: string[]): boolean => {
 }
 
 // --- Rate limiter & metrics for external API calls ---
-const RATE_LIMIT = Number(process.env.TCGCSV_RATE_LIMIT || '10') // requests per second
-const RATE_WINDOW_MS = 1000
-const requestTimestamps: number[] = [] // timestamps in ms of recent requests
-let requestsThisSecond = 0
-let peakRequestsThisSecond = 0
+const RATE_LIMIT = Number(process.env.TCGCSV_RATE_LIMIT || '9')
 
-// Periodic metric logging: logs requests per second and peak every REPORT_INTERVAL_MS
-const REPORT_INTERVAL_MS = Number(process.env.TCGCSV_RATE_REPORT_INTERVAL_MS || '5000')
-setInterval(() => {
-  console.info(`[rate] requests last second: ${requestsThisSecond}, peak: ${peakRequestsThisSecond}, limit: ${RATE_LIMIT}/s`)
-  requestsThisSecond = 0
-  peakRequestsThisSecond = 0
-}, REPORT_INTERVAL_MS)
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-async function waitForRateSlot() {
-  while (true) {
-    const now = Date.now()
-
-    // purge old timestamps outside the window
-    while (requestTimestamps.length && now - requestTimestamps[0] >= RATE_WINDOW_MS) {
-      requestTimestamps.shift()
-    }
-
-    if (requestTimestamps.length < RATE_LIMIT) {
-      requestTimestamps.push(now)
-      // increment metric counters
-      requestsThisSecond++
-      if (requestsThisSecond > peakRequestsThisSecond) peakRequestsThisSecond = requestsThisSecond
-      return
-    }
-
-    // wait until the oldest timestamp falls out of window
-    const wait = RATE_WINDOW_MS - (now - requestTimestamps[0]) + 2
-    await sleep(wait)
-  }
+interface GameGroupsData {
+  game: any
+  groups: any[]
 }
 
-async function rateLimitedGet(url: string, opts: any = {}) {
-  await waitForRateSlot()
-  return axios.get(url, opts)
+interface SetData {
+  set: any
+  products: any[]
+  prices: any[]
+}
+
+const rateLimitedAxios = createRateLimitedAxios(RATE_LIMIT)
+
+setInterval(() => {
+  console.info(`[rate] limit: ${RATE_LIMIT}/s`)
+}, 5000)
+
+const rateLimitedGet = async <T = any>(url: string, opts?: any): Promise<T> => {
+  return rateLimitedAxios.get<T>(url, opts)
 }
 
 // --- end rate limiter ---
-
 
 // Main combined hook function
 export const combinedHook = async (context: HookContext) => {
@@ -185,7 +170,7 @@ export const combinedHook = async (context: HookContext) => {
   await fetchGames(context)
   console.timeEnd('fetchGames')
 
-// Note: fetchGames will use rateLimitedGet to avoid exceeding API rate limits.
+  // Note: fetchGames will use rateLimitedGet to avoid exceeding API rate limits.
 
   console.time('fetchSets')
   await fetchSets(context)
@@ -219,8 +204,8 @@ export const combinedHook = async (context: HookContext) => {
 // }
 const fetchGames = async (context: HookContext) => {
   console.log('fetching games')
-  const response = await rateLimitedGet(`https://tcgcsv.com/tcgplayer/categories`)
-  const games = response.data.results
+  const response = await rateLimitedGet<{ results: any[] }>(`https://tcgcsv.com/tcgplayer/categories`)
+  const games = response.results
 
   const existingGames = await context.app.service('games').find({ query: {}, paginate: false })
   const existingGameIds = new Set(existingGames.map((g: any) => g.external_id.tcgcsv_id))
@@ -301,74 +286,145 @@ const fetchSets = async (context: HookContext) => {
 
   const games = await context.app.service('games').find({ query: {}, paginate: false })
 
-  const groupPromises = games.map(async (game) => {
+  const errors: Array<{ gameId: number; error: unknown }> = []
+  const newSets: Array<{ game_id: any; name: string; code: string; external_id: { tcgcsv_id: number } }> = []
+  const setsToUpdate: Array<{ id: string; data: { name: string; code: string } }> = []
+  let processedCount = 0
+  const totalGames = games.length
+  const startTime = Date.now()
+
+  console.log(`[fetchSets] Starting to fetch sets for ${totalGames} games`)
+
+  const pipeline = new ConcurrentPipeline<GameGroupsData>({
+    fetchConcurrency: 5,
+    processConcurrency: 5,
+    dbConcurrency: 3,
+    dbBatchSize: 2000,
+    rateLimit: RATE_LIMIT
+  })
+
+  pipeline.setContext(context)
+
+  for (const game of games) {
+    pipeline.addFetchTask(async () => {
+      const fetchStartTime = Date.now()
+      try {
+        const response = await rateLimitedGet<{ results: any[] }>(
+          `https://tcgcsv.com/tcgplayer/${game.external_id.tcgcsv_id}/groups`
+        )
+        const duration = Date.now() - fetchStartTime
+        console.log(
+          `[fetchSets] Fetched groups for game ${game.external_id.tcgcsv_id} (${game.name}) - ${response.results?.length || 0} groups in ${duration}ms`
+        )
+        return { game, groups: response.results || [] }
+      } catch (error) {
+        console.error(`[fetchSets] Error fetching groups for game ${game.external_id.tcgcsv_id}:`, error)
+        throw error
+      }
+    })
+  }
+
+  pipeline.onProcess(async ({ game, groups }: GameGroupsData) => {
     try {
-      const response = await rateLimitedGet(`https://tcgcsv.com/tcgplayer/${game.external_id.tcgcsv_id}/groups`)
-      return { game, groups: response.data.results }
+      const existingSetsResult = await context.app.service('sets').find({
+        query: { game_id: game._id },
+        paginate: false
+      })
+
+      const existingSets = (existingSetsResult as any).data || existingSetsResult
+
+      interface SetRecord {
+        _id: string
+        name: string
+        code: string
+        external_id: { tcgcsv_id: number }
+      }
+
+      const existingSetMap = new Map<number, SetRecord>(
+        existingSets.map((s: SetRecord) => [s.external_id.tcgcsv_id, s])
+      )
+
+      const localNewSets: Array<{
+        game_id: any
+        name: string
+        code: string
+        external_id: { tcgcsv_id: number }
+      }> = []
+      const localSetsToUpdate: Array<{ id: string; data: { name: string; code: string } }> = []
+
+      for (const group of groups) {
+        const groupId = Number(group.groupId)
+        const existingSet = existingSetMap.get(groupId)
+
+        if (existingSet) {
+          const needsUpdate =
+            existingSet.name !== group.name || existingSet.code !== (group.abbreviation || '')
+
+          if (needsUpdate) {
+            localSetsToUpdate.push({
+              id: existingSet._id,
+              data: {
+                name: group.name,
+                code: group.abbreviation || ''
+              }
+            })
+          }
+        } else {
+          localNewSets.push({
+            game_id: game._id,
+            name: group.name,
+            code: group.abbreviation || '',
+            external_id: { tcgcsv_id: groupId }
+          })
+        }
+      }
+
+      newSets.push(...localNewSets)
+      setsToUpdate.push(...localSetsToUpdate)
+
+      processedCount++
+      if (processedCount % 20 === 0) {
+        const elapsed = Date.now() - startTime
+        const rate = processedCount / (elapsed / 1000)
+        console.log(
+          `[fetchSets] Processed ${processedCount}/${totalGames} games (${rate.toFixed(2)}/s), collected ${newSets.length} new sets, ${setsToUpdate.length} updates`
+        )
+      }
+
+      return { newProducts: [], updatedProducts: [], productsToMigrate: [] }
     } catch (error) {
-      console.log(`Error fetching groups for game ${game.external_id.tcgcsv_id}:`, error)
-      return { game, groups: [] }
+      errors.push({ gameId: game.external_id.tcgcsv_id, error })
+      return { newProducts: [], updatedProducts: [], productsToMigrate: [] }
     }
   })
 
-  const groupsData = await Promise.all(groupPromises)
+  await pipeline.run()
 
-  const allNewSets = []
-  const setsToUpdate = []
+  await pipeline.drain()
 
-  for (const { game, groups } of groupsData) {
-    const existingSets = await context.app.service('sets').find({
-      query: { game_id: game._id },
-      paginate: false
+  if (errors.length > 0) {
+    console.warn(`[fetchSets] Completed with ${errors.length} errors:`)
+    errors.forEach(({ gameId, error }) => {
+      console.warn(`  - Game ${gameId}: ${error}`)
     })
-
-    const existingSetMap = new Map(existingSets.map((s: any) => [s.external_id.tcgcsv_id, s]))
-
-    for (const group of groups) {
-      const groupId = Number(group.groupId)
-      const existingSet = existingSetMap.get(groupId)
-
-      if (existingSet) {
-        // Check if existing set needs updating
-        const needsUpdate = 
-          existingSet.name !== group.name || 
-          existingSet.code !== (group.abbreviation || '')
-
-        if (needsUpdate) {
-          setsToUpdate.push({
-            id: existingSet._id,
-            data: {
-              name: group.name,
-              code: group.abbreviation || ''
-            }
-          })
-        }
-      } else {
-        // Create new set
-        allNewSets.push({
-          game_id: game._id,
-          name: group.name,
-          code: group.abbreviation || '',
-          external_id: { tcgcsv_id: groupId }
-        })
-      }
-    }
   }
 
-  // Create new sets
-  if (allNewSets.length > 0) {
-    console.log(`Creating ${allNewSets.length} new sets`)
-    await context.app.service('sets').create(allNewSets)
+  const createStartTime = Date.now()
+  if (newSets.length > 0) {
+    console.log(`[fetchSets] Creating ${newSets.length} new sets`)
+    await context.app.service('sets').create(newSets)
   }
 
-  // Update existing sets
   if (setsToUpdate.length > 0) {
-    console.log(`Updating ${setsToUpdate.length} existing sets`)
-    const updatePromises = setsToUpdate.map(({ id, data }) =>
-      context.app.service('sets').patch(id, data)
-    )
+    console.log(`[fetchSets] Updating ${setsToUpdate.length} existing sets`)
+    const updatePromises = setsToUpdate.map(({ id, data }) => context.app.service('sets').patch(id, data))
     await Promise.all(updatePromises)
   }
+
+  const totalDuration = Date.now() - startTime
+  console.log(
+    `[fetchSets] Completed. New: ${newSets.length}, Updated: ${setsToUpdate.length}, Errors: ${errors.length}, Total duration: ${totalDuration}ms`
+  )
 }
 
 const parseNumberOrString = (input: string): number | string => {
@@ -777,9 +833,7 @@ const processProductsAndPrices = async (context: HookContext) => {
   console.log(`Running processProductsAndPrices on ${context.path}.${context.method}`)
   console.time('processProductsAndPrices Total Time')
 
-  // Step 1: Fetch all sets and games in memory
   console.time('Initial Data Fetch')
-  // Fetch sets, games, and existing products concurrently.
   const [sets, games, existingProducts] = await Promise.all([
     context.app.service('sets').find({ query: {}, paginate: false }),
     context.app.service('games').find({ query: {}, paginate: false }),
@@ -787,15 +841,9 @@ const processProductsAndPrices = async (context: HookContext) => {
   ])
   console.timeEnd('Initial Data Fetch')
 
-  // Build lookup maps for sets and games.
   const gameIdMap = new Map(games.map((game: any) => [game._id.toString(), game.external_id.tcgcsv_id]))
   const setMap = new Map(sets.map((set: any) => [set._id.toString(), set]))
-  
-  // --- Preload existing products ---
-  // We update every product, so fetch all of them.
 
-
-  // Build a map: key = product name, value = Map of external_id.tcgcsv_id → _id
   const existingProductsMap = new Map<string, Map<string, string>>()
   existingProducts.forEach((p: any) => {
     const name = p.name
@@ -806,112 +854,326 @@ const processProductsAndPrices = async (context: HookContext) => {
     }
     existingProductsMap.get(name)!.set(extId, p._id)
   })
-  // --- End Preload ---
 
-  // In-memory maps for products created in this run:
-  // newProductsMap: key = product name, value = Map of external_id.tcgcsv_id → true
   const newProductsMap = new Map<string, Map<string, boolean>>()
 
-  // Step 3: Fetch Products & Prices from API concurrently.
-  let limit = pLimit(2) // Adjust concurrency as needed
-  let batchSize = 200
+  const errors: Array<{ setId: string; error: unknown }> = []
 
-  //Step 4: Fetch Products & Prices from API
-  const productPromises = []
+  let processedCount = 0
+  const totalSets = sets.length
+  const startTime = Date.now()
 
-  for (let i = 0; i < sets.length; i += batchSize) {
-    const batch = sets.slice(i, i + batchSize)
+  console.log(`[processProductsAndPrices] Starting concurrent pipeline for ${totalSets} sets`)
 
-    productPromises.push(
-      ...batch.map((set) =>
-        limit(async () => {
-          const gameId = gameIdMap.get(set.game_id.toString())
-          if (!gameId) return { products: [], prices: [] }
+  const pipeline = new ConcurrentPipeline({
+    fetchConcurrency: 10,
+    processConcurrency: 10,
+    dbConcurrency: 5,
+    dbBatchSize: 2000,
+    rateLimit: RATE_LIMIT
+  })
 
-          try {
-            const [productResponse, priceResponse] = await Promise.all([
-              rateLimitedGet(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/products`),
-              rateLimitedGet(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`)
-            ])
+  pipeline.setContext(context)
 
-            return {
-              products: productResponse.data.results.map((p: any) => {
-                const sources = [set.name ?? '', set.code ?? '', p.name ?? '']
-                const anniversary = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.anniversary)
-                const preRelease = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.preRelease)
-                const release = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.release)
-                const genericEvent = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.general)
-                const promo = keywordMatch(sources, PROMO_KEYWORDS)
+  const productIdToNewSetMap = new Map<number, string>()
 
-                return {
-                  ...p,
-                  game_id: set.game_id,
-                  set_id: set._id,
-                  anniversary,
-                  pre_release: preRelease,
-                  release,
-                  event_keyword: genericEvent,
-                  promo
-                }
-              }),
-              prices: priceResponse.data.results
-            }
-          } catch (error) {
-            console.error(`Error fetching data for set ${set._id}:`, error)
-            return { products: [], prices: [] }
+  for (const set of sets) {
+    pipeline.addFetchTask(async () => {
+      const fetchStartTime = Date.now()
+      const gameId = gameIdMap.get(set.game_id.toString())
+
+      if (!gameId) {
+        throw new Error(`No game ID found for set ${set._id}`)
+      }
+
+      try {
+        const [productResponse, priceResponse] = await Promise.all([
+          rateLimitedGet<{ results: any[] }>(
+            `https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/products`
+          ),
+          rateLimitedGet<{ results: any[] }>(
+            `https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`
+          )
+        ])
+
+        const productData = productResponse.results || []
+        const priceData = priceResponse.results || []
+
+        const products = productData.map((p: any) => {
+          const sources = [set.name ?? '', set.code ?? '', p.name ?? '']
+          const anniversary = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.anniversary)
+          const preRelease = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.preRelease)
+          const release = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.release)
+          const genericEvent = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.general)
+          const promo = keywordMatch(sources, PROMO_KEYWORDS)
+
+          return {
+            ...p,
+            game_id: set.game_id,
+            set_id: set._id,
+            anniversary,
+            pre_release: preRelease,
+            release,
+            event_keyword: genericEvent,
+            promo
           }
         })
-      )
-    )
+
+        const duration = Date.now() - fetchStartTime
+        console.log(
+          `[processProductsAndPrices] Fetched set ${set._id} (${set.name}) - ${products.length} products, ${priceData.length} prices in ${duration}ms`
+        )
+
+        return { set, products, prices: priceData }
+      } catch (error) {
+        console.error(`[processProductsAndPrices] Error fetching data for set ${set._id}:`, error)
+        throw error
+      }
+    })
   }
 
-  // Step 5: Await all API calls
-  const results = await Promise.all(productPromises)
-  const allProducts = results.flatMap((r) => r.products)
-  const allPrices = results.flatMap((r) => r.prices)
+  pipeline.onProcess(async ({ set, products, prices }: SetData) => {
+    const localNewProducts: NewProduct[] = []
+    const localUpdatedProducts: Array<{ id: string; data: any }> = []
+    const localMigrations: Array<{
+      id: string
+      currentSetId: string
+      newSetId: string
+      tcgcsvId: number
+      name: string
+    }> = []
 
-  if (allProducts.length === 0) {
-    console.log('No products fetched from API; aborting product processing.')
-    return
-  }
+    try {
+      for (const prod of products) {
+        productIdToNewSetMap.set(prod.productId, prod.set_id.toString())
+      }
 
-  if (allPrices.length === 0) {
-    console.warn(`Warning: prices array is empty for this run; proceeding to update ${allProducts.length} products with default price values.`)
-    const sampleProductIds = allProducts.slice(0, 10).map((p: any) => p.productId)
-    console.log('Sample productIds (first 10):', sampleProductIds)
-  }
+      const productMap = new Map<number, any>()
+      for (const prod of products) {
+        productMap.set(prod.productId, prod)
+      }
 
-  console.time('Processing Extracted Data')
+      for (const price of prices) {
+        const prod = productMap.get(price.productId)
+        if (!prod) continue
 
-  // Build a product map keyed by productId.
-  const productMap = new Map<number, any>()
-  for (const prod of allProducts) {
-    productMap.set(prod.productId, prod)
-  }
+        let newProduct = extractProductData(prod)
 
-  const newProducts = []
-  const updatedProducts = []
+        const finishInfo = normalizePrint(price.subTypeName)
+        const finishKey = deriveFinishKey(finishInfo.key)
+        const finishVariantKey = isFoilVariantKey(finishInfo.key) ? finishInfo.key : null
+
+        const variantInfo = detectPrintVariant({
+          name: prod.name,
+          short_name: prod.cleanName ?? prod.name,
+          extended_data: newProduct.extended_data
+        })
+
+        let printKey = variantInfo.key
+        if (!printKey || printKey === 'base' || isFinishKey(printKey)) {
+          printKey = finishVariantKey ?? 'base'
+        }
+
+        newProduct.print = printKey
+        newProduct.finish = finishKey
+
+        const extIdStr = newProduct.external_id.tcgcsv_id.toString()
+
+        const eventSuffixes = [
+          {
+            condition: prod.pre_release,
+            suffix: '(Pre-Release Event)',
+            keywords: EVENT_KEYWORD_BUCKETS.preRelease
+          },
+          { condition: prod.release, suffix: '(Release Event)', keywords: EVENT_KEYWORD_BUCKETS.release },
+          {
+            condition: prod.anniversary,
+            suffix: '(Anniversary Event)',
+            keywords: EVENT_KEYWORD_BUCKETS.anniversary
+          },
+          {
+            condition: (prod.promo || newProduct.rarity === 'PR') && newProduct.rarity !== 'Promo',
+            suffix: '(Promo)',
+            keywords: PROMO_SUFFIX_KEYWORDS
+          }
+        ]
+
+        for (const { condition, suffix, keywords } of eventSuffixes) {
+          if (condition) {
+            const alreadyHasKeyword = keywordMatch([newProduct.name], keywords)
+            const alreadyHasSuffix = newProduct.name.toLowerCase().includes(suffix.toLowerCase())
+
+            if (!alreadyHasKeyword && !alreadyHasSuffix) {
+              newProduct.name += ` ${suffix}`
+            }
+          }
+        }
+
+        newProduct.market_price = price.marketPrice ? Number(price.marketPrice) : -1
+        newProduct.low_price = price.lowPrice ? Number(price.lowPrice) : -1
+        newProduct.mid_price = price.midPrice ? Number(price.midPrice) : -1
+        newProduct.high_price = price.highPrice ? Number(price.highPrice) : -1
+        newProduct.direct_low_price = price.directLowPrice ? Number(price.directLowPrice) : -1
+
+        const eventTypes: string[] = []
+        if (prod.pre_release) eventTypes.push('pre_release')
+        if (prod.release) eventTypes.push('release')
+        if (prod.anniversary) eventTypes.push('anniversary')
+        if (prod.event_keyword) eventTypes.push('event')
+        if (prod.promo) eventTypes.push('promo')
+        newProduct.event_types = eventTypes
+
+        const rarityText = newProduct.rarity ? `, ${newProduct.rarity}` : ''
+        if (
+          (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
+          newProduct.type === 'Presale' ||
+          newProduct.name.includes('Token')
+        ) {
+          if (
+            newProduct.collector_number === undefined ||
+            newProduct.name.includes(removeLeadingZeros(newProduct.collector_number))
+          ) {
+            newProduct.name += ` (${price.subTypeName}${rarityText})`
+          } else if (newProduct.collector_number !== undefined) {
+            newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}${rarityText})`
+          }
+        }
+
+        // We have to do this before we check for duplicates
+        const setData = setMap.get(newProduct.set_id.toString())
+        if (setData && setData.name === 'The List Reprints' && !newProduct.name.includes('(LIST)')) {
+          newProduct.name += ' (LIST)'
+        }
+
+        if (
+          setData &&
+          setData.name.includes('Revision Pack') &&
+          (setData.code === 'OPRP' || setData.code === 'RP20' || setData.code === 'RPC')
+        ) {
+          newProduct.name += ' (Revision Pack)'
+        }
+
+        const nameExists = existingProductsMap.has(newProduct.name) || newProductsMap.has(newProduct.name)
+        if (!nameExists) {
+          if (newProduct.name.includes('DON!! Card') && setData) {
+            let code = setData.code && setData.code !== '' ? setData.code : setData.name
+            if (code) {
+              newProduct.name += ` (${code})`
+            }
+          }
+
+          localNewProducts.push(newProduct)
+          newProductsMap.set(newProduct.name, new Map([[extIdStr, true]]))
+        } else {
+          const extMapExisting = existingProductsMap.get(newProduct.name)
+          const extMapNew = newProductsMap.get(newProduct.name)
+          const compositeExists =
+            (extMapExisting && extMapExisting.has(extIdStr)) || (extMapNew && extMapNew.has(extIdStr))
+
+          if (compositeExists) {
+            let existingId = extMapExisting!.get(extIdStr)
+
+            localUpdatedProducts.push({
+              id: existingId!.toString(),
+              data: {
+                name: newProduct.name,
+                type: newProduct.type,
+                print: printKey,
+                finish: finishKey,
+                event_types: newProduct.event_types,
+                market_price: newProduct.market_price,
+                low_price: newProduct.low_price,
+                mid_price: newProduct.mid_price,
+                high_price: newProduct.high_price,
+                direct_low_price: newProduct.direct_low_price
+              }
+            })
+          } else {
+            if (setData) {
+              let code = setData.code && setData.code !== '' ? setData.code : setData.name
+              if (setData.name === 'The List Reprints') {
+                code = ''
+              }
+              if (code === 'POP') {
+                code = setData.name
+              }
+              newProduct.name += ` (${code})`
+            }
+
+            const newCompositeExists =
+              (existingProductsMap.has(newProduct.name) &&
+                existingProductsMap.get(newProduct.name)!.has(extIdStr)) ||
+              (newProductsMap.has(newProduct.name) && newProductsMap.get(newProduct.name)!.has(extIdStr))
+
+            if (newCompositeExists) {
+              let existingId = existingProductsMap.get(newProduct.name)?.get(extIdStr)
+
+              localUpdatedProducts.push({
+                id: existingId!.toString(),
+                data: {
+                  name: newProduct.name,
+                  type: newProduct.type,
+                  print: printKey,
+                  finish: finishKey,
+                  event_types: newProduct.event_types,
+                  market_price: price.marketPrice ? Number(price.marketPrice) : -1,
+                  low_price: price.lowPrice ? Number(price.lowPrice) : -1,
+                  mid_price: price.midPrice ? Number(price.midPrice) : -1,
+                  high_price: price.highPrice ? Number(price.highPrice) : -1,
+                  direct_low_price: price.directLowPrice ? Number(price.directLowPrice) : -1
+                }
+              })
+
+              if (!newProductsMap.has(newProduct.name)) {
+                newProductsMap.set(newProduct.name, new Map())
+              }
+              newProductsMap.get(newProduct.name)!.set(extIdStr, true)
+            } else {
+              localNewProducts.push(newProduct)
+              if (!newProductsMap.has(newProduct.name)) {
+                newProductsMap.set(newProduct.name, new Map())
+              }
+              newProductsMap.get(newProduct.name)!.set(extIdStr, true)
+            }
+          }
+        }
+      }
+
+      processedCount++
+      if (processedCount % 100 === 0) {
+        const elapsed = Date.now() - startTime
+        const rate = processedCount / (elapsed / 1000)
+        console.log(
+          `[processProductsAndPrices] Processed ${processedCount}/${totalSets} sets (${rate.toFixed(2)}/s)`
+        )
+      }
+
+      return {
+        newProducts: localNewProducts,
+        updatedProducts: localUpdatedProducts,
+        productsToMigrate: localMigrations
+      }
+    } catch (error) {
+      errors.push({ setId: set._id, error })
+      return { newProducts: [], updatedProducts: [], productsToMigrate: [] }
+    }
+  })
+
+  await pipeline.run()
+
+  await pipeline.drain()
+
+  console.time('Product Migrations')
   const productsToMigrate = []
-
-  // Step 6: Detect products that need to be migrated between sets
-  console.time('Detect Product Migrations')
-  
-  // Build a map of tcgcsv_id to new set_id from the fetched products
-  const productIdToNewSetMap = new Map<number, string>()
-  for (const prod of allProducts) {
-    productIdToNewSetMap.set(prod.productId, prod.set_id.toString())
-  }
-
-  // Check existing products to see if any need to be moved to different sets
   for (const existingProduct of existingProducts) {
     const tcgcsvId = existingProduct.external_id?.tcgcsv_id
     if (!tcgcsvId) continue
 
     const newSetId = productIdToNewSetMap.get(tcgcsvId)
-    if (!newSetId) continue // Product no longer exists in API
+    if (!newSetId) continue
 
     const currentSetId = existingProduct.set_id.toString()
-    
+
     if (currentSetId !== newSetId) {
       productsToMigrate.push({
         id: existingProduct._id.toString(),
@@ -923,247 +1185,51 @@ const processProductsAndPrices = async (context: HookContext) => {
     }
   }
 
-  // Perform the migrations
   if (productsToMigrate.length > 0) {
-    console.log(`Migrating ${productsToMigrate.length} products between sets`)
-    
-    const migrationPromises = productsToMigrate.map(migration =>
-      limit(async () => {
+    console.log(`[processProductsAndPrices] Migrating ${productsToMigrate.length} products between sets`)
+    const migrationLimit = pLimit(5)
+    const migrationPromises = productsToMigrate.map((migration) =>
+      migrationLimit(async () => {
         const currentSet = setMap.get(migration.currentSetId)
         const newSet = setMap.get(migration.newSetId)
 
-        console.log(`Migrating product "${migration.name}" from set "${currentSet?.name}" to "${newSet?.name}"`)
+        console.log(
+          `[processProductsAndPrices] Migrating product "${migration.name}" from set "${currentSet?.name}" to "${newSet?.name}"`
+        )
 
         try {
           return await context.app.service('products').patch(migration.id, {
             set_id: new ObjectId(migration.newSetId)
           })
         } catch (err) {
-          console.error('Error migrating product', migration.id, { currentSet: currentSet?.name, newSet: newSet?.name, error: err })
+          console.error('[processProductsAndPrices] Error migrating product', migration.id, {
+            currentSet: currentSet?.name,
+            newSet: newSet?.name,
+            error: err
+          })
         }
       })
     )
 
     await Promise.all(migrationPromises)
   }
-  
-  console.timeEnd('Detect Product Migrations')
+  console.timeEnd('Product Migrations')
 
-  // In-memory sets for this run:
-  // newNames: Set of new product names added in this run.
-  // newCompositeKeys: Set of composite keys ("name::tcgcsv_id") added in this run.
-
-  // Main loop: Process each price entry.
-  for (const price of allPrices) {
-    const prod = productMap.get(price.productId)
-    if (!prod) continue
-
-    let newProduct = extractProductData(prod)
-
-    const finishInfo = normalizePrint(price.subTypeName)
-    const finishKey = deriveFinishKey(finishInfo.key)
-    const finishVariantKey = isFoilVariantKey(finishInfo.key) ? finishInfo.key : null
-
-    const variantInfo = detectPrintVariant({
-      name: prod.name,
-      short_name: prod.cleanName ?? prod.name,
-      extended_data: newProduct.extended_data
-    })
-
-    let printKey = variantInfo.key
-    if (!printKey || printKey === 'base' || isFinishKey(printKey)) {
-      printKey = finishVariantKey ?? 'base'
-    }
-
-    newProduct.print = printKey
-    newProduct.finish = finishKey
-
-    // Build a local variable for the external id as a string.
-    const extIdStr = newProduct.external_id.tcgcsv_id.toString();
-
-    newProduct.name += prod.pre_release ? ' (Pre-Release Event)' : ''
-    newProduct.name += prod.release ? ' (Release Event)' : ''
-    newProduct.name += prod.anniversary ? ' (Anniversary Event)' : ''
-    newProduct.name += prod.promo && newProduct.rarity !== 'Promo' ? ' (Promo)' : ''
-
-    newProduct.market_price = price.marketPrice ? Number(price.marketPrice) : -1
-    newProduct.low_price = price.lowPrice ? Number(price.lowPrice) : -1
-    newProduct.mid_price = price.midPrice ? Number(price.midPrice) : -1
-    newProduct.high_price = price.highPrice ? Number(price.highPrice) : -1
-    newProduct.direct_low_price = price.directLowPrice ? Number(price.directLowPrice) : -1
-
-  const eventTypes: string[] = []
-  if (prod.pre_release) eventTypes.push('pre_release')
-  if (prod.release) eventTypes.push('release')
-  if (prod.anniversary) eventTypes.push('anniversary')
-  if (prod.event_keyword) eventTypes.push('event')
-  if (prod.promo) eventTypes.push('promo')
-  newProduct.event_types = eventTypes
-
-    const rarityText = newProduct.rarity ? `, ${newProduct.rarity}` : ''
-    if (
-      (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
-      newProduct.type === 'Presale' ||
-      newProduct.name.includes('Token')
-    ) {
-      if (
-        newProduct.collector_number === undefined ||
-        newProduct.name.includes(removeLeadingZeros(newProduct.collector_number))
-      ) {
-        newProduct.name += ` (${price.subTypeName}${rarityText})`
-      } else if (newProduct.collector_number !== undefined) {
-        newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}${rarityText})`
-      }
-    }
-
-    const setData = setMap.get(newProduct.set_id.toString())
-    if (setData && setData.name === 'The List Reprints' && !newProduct.name.includes('(LIST)')) {
-      newProduct.name += ' (LIST)'
-    }
-
-    // --- STEP 1: Check if the name exists ---
-    const nameExists = existingProductsMap.has(newProduct.name) || newProductsMap.has(newProduct.name)
-    if (!nameExists) {
-      // Name does not exist, so add a new product
-      newProducts.push(newProduct)
-      // Record in newProductsMap
-      newProductsMap.set(newProduct.name, new Map([[extIdStr, true]]))
-    } else {
-      // --- STEP 2: Name exists; check composite key ---
-      const extMapExisting = existingProductsMap.get(newProduct.name)
-      const extMapNew = newProductsMap.get(newProduct.name)
-      const compositeExists =
-        (extMapExisting && extMapExisting.has(extIdStr)) ||
-        (extMapNew && extMapNew.has(extIdStr))
-
-      if (compositeExists) {
-        //combination of name and tcgcsv exists, add to update list
-        let existingId = extMapExisting!.get(extIdStr)
-
-        updatedProducts.push({
-          id: existingId!.toString(),
-          data: {
-            name: newProduct.name,
-            type: newProduct.type,
-            print: printKey,
-            finish: finishKey,
-            event_types: newProduct.event_types,
-            market_price: newProduct.market_price,
-            low_price: newProduct.low_price,
-            mid_price: newProduct.mid_price,
-            high_price: newProduct.high_price,
-            direct_low_price: newProduct.direct_low_price
-          }
-        })
-      } else {
-        // Step 3: Name exists but the composite key does not
-        // Add set code
-        if (setData) {
-          let code = setData.code && setData.code !== '' ? setData.code : setData.name
-          if (setData.name === 'The List Reprints') {
-            code = ''
-          }
-          if (code === 'POP') {
-            code = setData.name
-          }
-          newProduct.name += ` (${code})`
-
-        }
-        // Now, check again in the in-memory maps.
-        const newCompositeExists =
-          (existingProductsMap.has(newProduct.name) &&
-            existingProductsMap.get(newProduct.name)!.has(extIdStr)) ||
-          (newProductsMap.has(newProduct.name) &&
-            newProductsMap.get(newProduct.name)!.has(extIdStr))
-
-        if (newCompositeExists) {
-                                // Now the composite exists => update.
-
-          let existingId = existingProductsMap
-            .get(newProduct.name)
-            ?.get(extIdStr)
-
-          updatedProducts.push({
-            id: existingId!.toString(),
-            data: {
-              name: newProduct.name,
-              type: newProduct.type,
-              print: printKey,
-              finish: finishKey,
-              event_types: newProduct.event_types,
-              market_price: price.marketPrice ? Number(price.marketPrice) : -1,
-              low_price: price.lowPrice ? Number(price.lowPrice) : -1,
-              mid_price: price.midPrice ? Number(price.midPrice) : -1,
-              high_price: price.highPrice ? Number(price.highPrice) : -1,
-              direct_low_price: price.directLowPrice ? Number(price.directLowPrice) : -1
-            }
-          })
-                    // Record the composite key in newProductsMap for consistency.
-
-          if (!newProductsMap.has(newProduct.name)) {
-            newProductsMap.set(newProduct.name, new Map())
-          }
-          newProductsMap.get(newProduct.name)!.set(extIdStr, true)
-        } else {
-                    // Composite still doesn't exist: add as new.
-
-          newProducts.push(newProduct)
-          if (!newProductsMap.has(newProduct.name)) {
-            newProductsMap.set(newProduct.name, new Map())
-          }
-          newProductsMap.get(newProduct.name)!.set(extIdStr, true)
-        }
-      }
-    }
-  }
-
-  console.time('Database Insert/Update')
-  //Step 4: Bulk Insert New Products in batches
-  batchSize = 5000
-  limit = pLimit(5)
-  const batches = []
-
-  for (let i = 0; i < newProducts.length; i += batchSize) {
-    batches.push(newProducts.slice(i, i + batchSize))
-  }
-
-  console.log(`Inserting ${newProducts.length} new products in ${batches.length} batches`)
-  const createPromises = batches.map((batch, idx) =>
-    limit(async () => {
-      try {
-        return await context.app.service('products').create(batch)
-      } catch (err) {
-        console.error(`Error creating product batch ${idx} (size=${batch.length})`, err)
-      }
-    })
+  const totalDuration = Date.now() - startTime
+  console.log(
+    `[processProductsAndPrices] Completed. Total sets: ${processedCount}, Errors: ${errors.length}, Total duration: ${totalDuration}ms`
   )
 
-  await Promise.all(createPromises)
-
-  // if (newProducts.length > 0) {
-  //   await context.app.service('products').create(newProducts)
-  // }
-  // Step 5: Bulk Update Existing Products
-  console.log(`updating existing products: count=${updatedProducts.length}`)
-
-  const safePatch = async (id: string, data: any) => {
-    try {
-      return await context.app.service('products').patch(id, data)
-    } catch (err) {
-      console.error('Error patching product', id, data, err)
-      // If Mongo returns a duplicate-key or validation error, we log it and continue.
+  if (errors.length > 0) {
+    console.warn(`[processProductsAndPrices] Completed with ${errors.length} errors:`)
+    errors.slice(0, 10).forEach(({ setId, error }) => {
+      console.warn(`  - Set ${setId}: ${error}`)
+    })
+    if (errors.length > 10) {
+      console.warn(`  ... and ${errors.length - 10} more errors`)
     }
   }
 
-  const patchPromises = updatedProducts.map(({ id, data }) => limit(() => safePatch(id, data)))
-  await Promise.all(patchPromises)
-  console.log('done updating existing products')
-
-  //step 6: bulk insert prices
-  // removed for now
-
-  console.timeEnd('Database Insert/Update')
-  console.timeEnd('Processing Extracted Data')
   console.timeEnd('processProductsAndPrices Total Time')
 }
 

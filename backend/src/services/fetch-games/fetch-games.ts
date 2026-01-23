@@ -6,7 +6,7 @@ import { FetchGamesService, getOptions } from './fetch-games.class'
 import { fetchGamesPath, fetchGamesMethods } from './fetch-games.shared'
 export * from './fetch-games.class'
 
-import axios from 'axios';  // Corrected import statement
+import axios from 'axios' // Corrected import statement
 import { combinedHook } from '../../hooks/update-data'
 
 // A configure function that registers the service and its hooks via `app.configure`
@@ -27,9 +27,7 @@ export const fetchGames = (app: Application) => {
       all: [],
       find: [],
       get: [],
-      create: [
-       combinedHook
-      ],
+      create: [combinedHook],
       patch: [],
       remove: []
     },

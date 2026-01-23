@@ -21,7 +21,6 @@ export class ProductsService<ServiceParams extends Params = ProductsParams> exte
   // async find(params?: ProductsParams): Promise<any> {
   //   const { query } = params || {};
   //   const { $sort, ...restQuery } = query || {};
-
   //   if ($sort && Object.keys($sort).some(key => key.startsWith('price.market_price'))) {
   //     const sortKey = Object.keys($sort).find(key => key.startsWith('price.market_price'))!;
   //     const sortDirection = ($sort as { [key: string]: number })[sortKey] === 1 ? 1 : -1;
@@ -30,14 +29,12 @@ export class ProductsService<ServiceParams extends Params = ProductsParams> exte
   //     const products = await app.service('products').find({query: restQuery})
   //     const total = products.total
   //     const productArray = products.data
-
   //     // Custom sorting logic
   //     productArray.sort((a: any, b: any) => {
   //       const aValue = Math.min(...Object.values(a.price.market_price || {}).map(Number));
   //       const bValue = Math.min(...Object.values(b.price.market_price || {}).map(Number));
   //       return (aValue - bValue) * sortDirection;
   //     });
-
   //     return {
   //       total: products.total,
   //       limit: params?.query?.$limit || productArray.length,
@@ -45,11 +42,9 @@ export class ProductsService<ServiceParams extends Params = ProductsParams> exte
   //       data: productArray.slice(params?.query?.$skip || 0, (params?.query?.$skip || 0) + (params?.query?.$limit || productArray.length))
   //     };
   //   }
-
   //   return super.find(params);
   // }
-
-  }
+}
 
 export const getOptions = (app: Application): MongoDBAdapterOptions => {
   return {
@@ -58,20 +53,22 @@ export const getOptions = (app: Application): MongoDBAdapterOptions => {
       max: 500000
     },
     multi: ['create'],
-    Model: app.get('mongodbClient').then((db) => db.collection('products')).then((collection) => {
-      collection.createIndex({'external_id.tcgcsv_id': 1, name: 1,}, {unique: true})
-      collection.createIndex({collector_number: 1})
-      collection.createIndex({sort_number: 1})
-      collection.createIndex({'external_id.tcgcsv_id': 1})
-      collection.createIndex({name: 1})
-      collection.createIndex({name: 'text'})
-      collection.createIndex({market_price: 1})
-  collection.createIndex({ game_id: 1, rarity: 1, print: 1, finish: 1 })
+    Model: app
+      .get('mongodbClient')
+      .then((db) => db.collection('products'))
+      .then((collection) => {
+        collection.createIndex({ 'external_id.tcgcsv_id': 1, name: 1 }, { unique: true })
+        collection.createIndex({ collector_number: 1 })
+        collection.createIndex({ sort_number: 1 })
+        collection.createIndex({ 'external_id.tcgcsv_id': 1 })
+        collection.createIndex({ name: 1 })
+        collection.createIndex({ name: 'text' })
+        collection.createIndex({ market_price: 1 })
+        collection.createIndex({ game_id: 1, rarity: 1, print: 1, finish: 1 })
 
-      //collection.createIndex({name: 'text'})
-      
+        //collection.createIndex({name: 'text'})
 
-      return collection
-    })
+        return collection
+      })
   }
 }

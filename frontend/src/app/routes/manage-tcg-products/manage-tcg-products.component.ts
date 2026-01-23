@@ -77,7 +77,19 @@ export class ManageTCGProductsComponent implements OnInit {
   filteredProducts: any[] = []
   isExporting = false
 
-  constructor(private data: DataService, private auth: AuthService) {}
+  constructor(private data: DataService, private auth: AuthService) {
+    this.debouncedSearch = this.debounce(this.executeSearch.bind(this), 300)
+  }
+
+  private debounce = (func: Function, wait: number) => {
+    let timeout: any
+    return (...args: any[]) => {
+      clearTimeout(timeout)
+      timeout = setTimeout(() => func.apply(this, args), wait)
+    }
+  }
+
+  private debouncedSearch: (...args: any[]) => void
 
   ngOnInit() {
     this.userSubscription = this.auth.currentUser.subscribe((user: any) => {
@@ -105,20 +117,16 @@ export class ManageTCGProductsComponent implements OnInit {
 
   search(event: Event) {
     const inputElement = event.target as HTMLInputElement
-    const term = inputElement.value
+    this.debouncedSearch(inputElement.value)
+  }
+
+  private executeSearch(term: string) {
     this.currentSearchTerm = term || ''
     if (!term) {
       const skip = this.pageIndex * this.pageSize
       const setId = this.selectedSet || ''
       const gameId = setId ? '' : this.selectedGame
-      this.fetchProducts(
-        this.pageSize,
-        skip,
-        this.defaultSort,
-        setId,
-        gameId,
-        ''
-      )
+      this.fetchProducts(this.pageSize, skip, this.defaultSort, setId, gameId, '')
     } else {
       const skip = this.pageIndex * this.pageSize
       this.fetchProducts(this.pageSize, skip, this.defaultSort, '', '', term)
@@ -619,7 +627,7 @@ export class ManageTCGProductsComponent implements OnInit {
     )
 
     for (const no of noMatch) {
-      console.log(`no Match: ${no}`)
+      console.log('no Match:', no)
     }
     console.timeEnd('processing retail json object')
     const csv = Papa.unparse(priceChanges)

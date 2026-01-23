@@ -21,10 +21,6 @@ import { filterStoreStatus } from '../../hooks/filter-store-status'
 import { returnOnlyId } from '../../hooks/return-only-id'
 import { applyProductFilters } from '../../hooks/apply-product-filters'
 
-
-
-
-
 export * from './products.class'
 export * from './products.schema'
 
@@ -35,7 +31,7 @@ export const products = (app: Application) => {
     // A list of all methods this service exposes externally
     methods: productsMethods,
     // You can add additional custom events to be sent to clients here
-    events: [],
+    events: []
   })
   // Initialize hooks
   app.service(productsPath).hooks({
@@ -51,7 +47,7 @@ export const products = (app: Application) => {
         schemaHooks.validateQuery(productsQueryValidator),
         schemaHooks.resolveQuery(productsQueryResolver)
       ],
-  find: [applyProductFilters],
+      find: [applyProductFilters],
       get: [],
       create: [
         schemaHooks.validateData(productsDataValidator),
@@ -66,7 +62,7 @@ export const products = (app: Application) => {
     after: {
       all: [],
       create: [returnOnlyId],
-      find: [filterStoreStatus],
+      find: [filterStoreStatus]
     },
     error: {
       all: []

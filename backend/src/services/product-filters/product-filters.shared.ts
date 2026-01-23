@@ -4,7 +4,10 @@ import type { ProductFiltersResult, ProductFiltersService } from './product-filt
 
 export type { ProductFiltersResult }
 
-export type ProductFiltersClientService = Pick<ProductFiltersService<Params>, (typeof productFiltersMethods)[number]>
+export type ProductFiltersClientService = Pick<
+  ProductFiltersService<Params>,
+  (typeof productFiltersMethods)[number]
+>
 
 export const productFiltersPath = 'products/filters'
 

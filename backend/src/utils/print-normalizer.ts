@@ -167,8 +167,7 @@ type ExtendedDataEntry = {
   value?: unknown
 }
 
-const isExtendedDataEntry = (entry: any): entry is ExtendedDataEntry =>
-  entry && typeof entry === 'object'
+const isExtendedDataEntry = (entry: any): entry is ExtendedDataEntry => entry && typeof entry === 'object'
 
 const extractCandidateFromExtendedData = (product: Partial<Products>): string | undefined => {
   const extended = Array.isArray(product.extended_data) ? product.extended_data : []
@@ -241,8 +240,15 @@ const collectVariantSegments = (value?: string, options: { includeFull?: boolean
 }
 
 const keywordMatchesSegment = (segment: string, keyword: string): boolean => {
-  const segmentTokens = segment.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
-  const keywordTokens = keyword.toLowerCase().trim().split(/[^a-z0-9]+/).filter(Boolean)
+  const segmentTokens = segment
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+  const keywordTokens = keyword
+    .toLowerCase()
+    .trim()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
 
   if (segmentTokens.length === 0 || keywordTokens.length === 0) {
     return false

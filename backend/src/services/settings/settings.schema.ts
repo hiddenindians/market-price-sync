@@ -28,15 +28,13 @@ export const settingsResolver = resolve<Settings, HookContext<SettingsService>>(
 export const settingsExternalResolver = resolve<Settings, HookContext<SettingsService>>({})
 
 // Schema for creating new entries
-export const settingsDataSchema = Type.Pick(settingsSchema, [
-  'limit',
-  'skip',
-  'buylist_percentage',
-  'timeout',
-  'tcgcsv_last_updated',
-], {
-  $id: 'SettingsData'
-})
+export const settingsDataSchema = Type.Pick(
+  settingsSchema,
+  ['limit', 'skip', 'buylist_percentage', 'timeout', 'tcgcsv_last_updated'],
+  {
+    $id: 'SettingsData'
+  }
+)
 export type SettingsData = Static<typeof settingsDataSchema>
 export const settingsDataValidator = getValidator(settingsDataSchema, dataValidator)
 export const settingsDataResolver = resolve<Settings, HookContext<SettingsService>>({})
@@ -50,7 +48,7 @@ export const settingsPatchValidator = getValidator(settingsPatchSchema, dataVali
 export const settingsPatchResolver = resolve<Settings, HookContext<SettingsService>>({})
 
 // Schema for allowed query properties
-export const settingsQueryProperties = Type.Pick(settingsSchema, ['_id',])
+export const settingsQueryProperties = Type.Pick(settingsSchema, ['_id'])
 export const settingsQuerySchema = Type.Intersect(
   [
     querySyntax(settingsQueryProperties),

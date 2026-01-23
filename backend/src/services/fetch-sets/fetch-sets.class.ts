@@ -17,9 +17,9 @@ export interface FetchSetsServiceOptions {
 export interface FetchSetsParams extends Params<FetchSetsQuery> {}
 
 // This is a skeleton for a custom service class. Remove or add the methods you need here
-export class FetchSetsService<ServiceParams extends FetchSetsParams = FetchSetsParams>
-  implements ServiceInterface<FetchSets, FetchSetsData, ServiceParams, FetchSetsPatch>
-{
+export class FetchSetsService<
+  ServiceParams extends FetchSetsParams = FetchSetsParams
+> implements ServiceInterface<FetchSets, FetchSetsData, ServiceParams, FetchSetsPatch> {
   constructor(public options: FetchSetsServiceOptions) {}
 
   async find(_params?: ServiceParams): Promise<FetchSets[]> {

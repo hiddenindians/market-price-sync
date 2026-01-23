@@ -23,7 +23,8 @@ export interface ProductFiltersServiceOptions {
 
 export interface ProductFiltersParams extends Params<ProductFiltersQuery> {}
 
-const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0
 const titleCase = (value: string): string =>
   value
     .split(/[_\s]+/)
@@ -33,8 +34,7 @@ const titleCase = (value: string): string =>
 
 export class ProductFiltersService<
   ServiceParams extends ProductFiltersParams = ProductFiltersParams
-> implements ServiceInterface<ProductFiltersResult, never, ServiceParams, never>
-{
+> implements ServiceInterface<ProductFiltersResult, never, ServiceParams, never> {
   constructor(private readonly options: ProductFiltersServiceOptions) {}
 
   async find(params?: ServiceParams): Promise<ProductFiltersResult> {
@@ -69,18 +69,9 @@ export class ProductFiltersService<
         { $match: matchStage },
         {
           $facet: {
-            rarities: [
-              { $match: { rarity: { $type: 'string' } } },
-              { $group: { _id: '$rarity' } }
-            ],
-            prints: [
-              { $match: { print: { $type: 'string' } } },
-              { $group: { _id: '$print' } }
-            ],
-            finishes: [
-              { $match: { finish: { $type: 'string' } } },
-              { $group: { _id: '$finish' } }
-            ],
+            rarities: [{ $match: { rarity: { $type: 'string' } } }, { $group: { _id: '$rarity' } }],
+            prints: [{ $match: { print: { $type: 'string' } } }, { $group: { _id: '$print' } }],
+            finishes: [{ $match: { finish: { $type: 'string' } } }, { $group: { _id: '$finish' } }],
             events: [
               { $unwind: { path: '$event_types', preserveNullAndEmptyArrays: false } },
               { $match: { event_types: { $type: 'string' } } },
@@ -95,9 +86,7 @@ export class ProductFiltersService<
     const rarities = rawRarities.filter(isNonEmptyString).sort((a, b) => a.localeCompare(b))
 
     const rawFinishes = (aggregationResult?.finishes ?? []).map((entry) => entry?._id)
-    const normalizedFinishKeys = rawFinishes
-      .filter(isNonEmptyString)
-      .map((key) => deriveFinishKey(key))
+    const normalizedFinishKeys = rawFinishes.filter(isNonEmptyString).map((key) => deriveFinishKey(key))
 
     const uniqueFinishes = Array.from(new Set(normalizedFinishKeys))
 
@@ -110,8 +99,9 @@ export class ProductFiltersService<
       .sort((a, b) => a.label.localeCompare(b.label))
 
     const rawPrints = (aggregationResult?.prints ?? []).map((entry) => entry?._id)
-    const uniquePrints = Array.from(new Set(rawPrints.filter(isNonEmptyString)))
-      .filter((key) => !isFinishKey(key) || key === 'base')
+    const uniquePrints = Array.from(new Set(rawPrints.filter(isNonEmptyString))).filter(
+      (key) => !isFinishKey(key) || key === 'base'
+    )
 
     if (!uniquePrints.includes('base')) {
       uniquePrints.unshift('base')

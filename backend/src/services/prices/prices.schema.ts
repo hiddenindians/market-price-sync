@@ -18,7 +18,7 @@ export const pricesSchema = Type.Object(
     low_price: Type.Optional(Type.Number()),
     mid_price: Type.Optional(Type.Number()),
     high_price: Type.Optional(Type.Number()),
-    direct_low_price: Type.Optional(Type.Number()),
+    direct_low_price: Type.Optional(Type.Number())
   },
   { $id: 'Prices', additionalProperties: false }
 )
@@ -29,9 +29,13 @@ export const pricesResolver = resolve<Prices, HookContext<PricesService>>({})
 export const pricesExternalResolver = resolve<Prices, HookContext<PricesService>>({})
 
 // Schema for creating new entries
-export const pricesDataSchema = Type.Pick(pricesSchema, ['timestamp', 'market_price', 'product_id', 'low_price', 'mid_price', 'high_price', "direct_low_price"], {
-  $id: 'PricesData'
-})
+export const pricesDataSchema = Type.Pick(
+  pricesSchema,
+  ['timestamp', 'market_price', 'product_id', 'low_price', 'mid_price', 'high_price', 'direct_low_price'],
+  {
+    $id: 'PricesData'
+  }
+)
 export type PricesData = Static<typeof pricesDataSchema>
 export const pricesDataValidator = getValidator(pricesDataSchema, dataValidator)
 export const pricesDataResolver = resolve<Prices, HookContext<PricesService>>({})
@@ -45,7 +49,12 @@ export const pricesPatchValidator = getValidator(pricesPatchSchema, dataValidato
 export const pricesPatchResolver = resolve<Prices, HookContext<PricesService>>({})
 
 // Schema for allowed query properties
-export const pricesQueryProperties = Type.Pick(pricesSchema, ['_id', 'timestamp', 'market_price', 'product_id'])
+export const pricesQueryProperties = Type.Pick(pricesSchema, [
+  '_id',
+  'timestamp',
+  'market_price',
+  'product_id'
+])
 export const pricesQuerySchema = Type.Intersect(
   [
     querySyntax(pricesQueryProperties),

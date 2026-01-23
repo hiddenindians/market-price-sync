@@ -21,9 +21,12 @@ export class PricesService<ServiceParams extends Params = PricesParams> extends 
 export const getOptions = (app: Application): MongoDBAdapterOptions => {
   return {
     paginate: app.get('paginate'),
-    Model: app.get('mongodbClient').then((db) => db.collection('prices')).then((collection) => {
-      collection.createIndex({ product_id: 1})
-      return collection
-    })
+    Model: app
+      .get('mongodbClient')
+      .then((db) => db.collection('prices'))
+      .then((collection) => {
+        collection.createIndex({ product_id: 1 })
+        return collection
+      })
   }
 }

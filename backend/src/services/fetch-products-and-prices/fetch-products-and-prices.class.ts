@@ -24,14 +24,12 @@ export interface FetchProductsAndPricesParams extends Params<FetchProductsAndPri
 // This is a skeleton for a custom service class. Remove or add the methods you need here
 export class FetchProductsAndPricesService<
   ServiceParams extends FetchProductsAndPricesParams = FetchProductsAndPricesParams
-> implements
-    ServiceInterface<
-      FetchProductsAndPrices,
-      FetchProductsAndPricesData,
-      ServiceParams,
-      FetchProductsAndPricesPatch
-    >
-{
+> implements ServiceInterface<
+  FetchProductsAndPrices,
+  FetchProductsAndPricesData,
+  ServiceParams,
+  FetchProductsAndPricesPatch
+> {
   constructor(public options: FetchProductsAndPricesServiceOptions) {}
 
   async find(_params?: ServiceParams): Promise<FetchProductsAndPrices[]> {

@@ -68,7 +68,7 @@ export const productsSchema = Type.Object(
     text: Type.Optional(Type.String()),
     rarity: Type.Optional(Type.String()),
     print: Type.Optional(Type.String()),
-  finish: Type.Optional(Type.String()),
+    finish: Type.Optional(Type.String()),
     collector_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
     sort_number: Type.Optional(Type.Union([Type.String(), Type.Number()])),
     extended_data: Type.Optional(
@@ -99,7 +99,6 @@ export const productsSchema = Type.Object(
             ecom_pid: Type.Optional(Type.String()),
             ecom_vid: Type.Optional(Type.String()),
             average_cost: Type.Optional(Type.Number())
-
           }),
           lightly_played: Type.Object({
             selling: Type.Object({
@@ -167,7 +166,6 @@ export const productsSchema = Type.Object(
   }
 )
 
-
 export type Products = Static<typeof productsSchema>
 export const productsValidator = getValidator(productsSchema, dataValidator)
 export const productsResolver = resolve<Products, HookContext<ProductsService>>({})
@@ -186,12 +184,12 @@ export const productsDataSchema = Type.Pick(
     'name',
     'short_name',
     'type',
-  'upc',
-  'text',
-  'rarity',
+    'upc',
+    'text',
+    'rarity',
     'print',
     'finish',
-  'event_types',
+    'event_types',
     'collector_number',
     'sort_number',
     'market_price',
@@ -293,7 +291,7 @@ export const productsPatchSchema = Type.Intersect(
       Type.Object({
         set_id: ObjectIdSchema()
       })
-    ),
+    )
   ],
   {
     $id: 'ProductsPatch'
@@ -352,11 +350,11 @@ export const productsQuerySchema = Type.Intersect(
       market_price: queryProperty(Type.Number()),
       events: Type.Optional(Type.Array(Type.String())),
       excludeEvents: Type.Optional(Type.Boolean()),
-  onlyEvents: Type.Optional(Type.Boolean()),
-  excludePromo: Type.Optional(Type.Boolean()),
-  onlyPromo: Type.Optional(Type.Boolean()),
-    minPrice: Type.Optional(Type.Number()),
-    maxPrice: Type.Optional(Type.Number()),
+      onlyEvents: Type.Optional(Type.Boolean()),
+      excludePromo: Type.Optional(Type.Boolean()),
+      onlyPromo: Type.Optional(Type.Boolean()),
+      minPrice: Type.Optional(Type.Number()),
+      maxPrice: Type.Optional(Type.Number()),
       store_status: queryProperty(Type.Any()),
       // 'store_status': Type.Optional(
       //   Type.Record(
