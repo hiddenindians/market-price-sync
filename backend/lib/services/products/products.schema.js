@@ -229,7 +229,7 @@ exports.productsPatchSchema = typebox_1.Type.Intersect([
     })),
     typebox_1.Type.Partial(typebox_1.Type.Object({
         set_id: (0, typebox_2.ObjectIdSchema)()
-    })),
+    }))
 ], {
     $id: 'ProductsPatch'
 });
@@ -249,7 +249,8 @@ exports.productsQueryProperties = typebox_1.Type.Pick(exports.productsSchema, [
     'print',
     'finish',
     'event_types',
-    'market_price'
+    'market_price',
+    'type'
 ]);
 exports.productsQuerySchema = typebox_1.Type.Intersect([
     typebox_1.Type.Object({
@@ -304,6 +305,7 @@ exports.productsQuerySchema = typebox_1.Type.Intersect([
         'external_id.tcgcsv_group_id': (0, typebox_1.queryProperty)(typebox_1.Type.Number()),
         game_id: (0, typebox_1.queryProperty)((0, typebox_2.ObjectIdSchema)()),
         set_id: (0, typebox_1.queryProperty)((0, typebox_2.ObjectIdSchema)()),
+        type: (0, typebox_1.queryProperty)(typebox_1.Type.String()),
         $sort: typebox_1.Type.Optional(typebox_1.Type.Object({
             'external_id.tcgcsv_group_id': typebox_1.Type.Optional(typebox_1.Type.Number()),
             sort_number: typebox_1.Type.Optional(typebox_1.Type.Number()),
@@ -312,7 +314,8 @@ exports.productsQuerySchema = typebox_1.Type.Intersect([
         })),
         $limit: typebox_1.Type.Optional(typebox_1.Type.Number()),
         $skip: typebox_1.Type.Optional(typebox_1.Type.Number()),
-        $or: typebox_1.Type.Optional(typebox_1.Type.Array(typebox_1.Type.Object({})))
+        $or: typebox_1.Type.Optional(typebox_1.Type.Array(typebox_1.Type.Object({}))),
+        $group: typebox_1.Type.Optional(typebox_1.Type.Object({})),
     })
 ], {
     additionalProperties: true

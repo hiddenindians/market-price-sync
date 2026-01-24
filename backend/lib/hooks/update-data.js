@@ -63,12 +63,39 @@ const EVENT_KEYWORD_BUCKETS = {
     release: ['Release Event'],
     general: ['Finalist', 'Championship', 'Participant', 'New Year Event', '3-on-3 Cup', 'Treasure Cup']
 };
-const PROMO_KEYWORDS = ['Promo', 'Promos', 'Promo Pack', 'Promotional', 'Tournament Pack', 'Secret Lair', 'SDCC'];
+const PROMO_KEYWORDS = [
+    'Promo',
+    'Promos',
+    'Promo Pack',
+    'Promotional',
+    'Tournament Pack',
+    'Secret Lair',
+    'SDCC'
+];
+const PROMO_SUFFIX_KEYWORDS = [
+    'Promo',
+    'Promos',
+    'Promo Pack',
+    'Promotional',
+    'Secret Lair',
+    'SDCC'
+];
+/**
+ * Tokenizes a string or null value into an array of lowercase alphanumeric words
+ * @param value - The string to tokenize
+ * @returns Array of tokenized words
+ */
 const tokenize = (value) => (value ?? '')
     .toString()
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
+/**
+ * Checks if a sequence of keyword tokens appears consecutively in source tokens
+ * @param sourceTokens - Array of tokens from the source
+ * @param keywordTokens - Array of tokens to match
+ * @returns True if the keyword sequence is found
+ */
 const containsKeywordSequence = (sourceTokens, keywordTokens) => {
     if (!sourceTokens.length || !keywordTokens.length) {
         return false;
@@ -90,38 +117,49 @@ const containsKeywordSequence = (sourceTokens, keywordTokens) => {
     }
     return false;
 };
+/**
+ * Checks if any keyword matches any source by tokenizing and checking sequences
+ * @param sources - Array of source strings
+ * @param keywords - Array of keywords to match
+ * @returns True if any keyword matches
+ */
 const keywordMatch = (sources, keywords) => {
     if (!Array.isArray(sources) || !Array.isArray(keywords) || keywords.length === 0) {
         return false;
     }
-    const sourceTokenSets = sources
-        .map((source) => tokenize(source))
-        .filter((tokens) => tokens.length > 0);
+    const sourceTokenSets = sources.map((source) => tokenize(source)).filter((tokens) => tokens.length > 0);
     if (!sourceTokenSets.length) {
         return false;
     }
-    const keywordTokenSets = keywords
-        .map((keyword) => tokenize(keyword))
-        .filter((tokens) => tokens.length > 0);
+    const keywordTokenSets = keywords.map((keyword) => tokenize(keyword)).filter((tokens) => tokens.length > 0);
     if (!keywordTokenSets.length) {
         return false;
     }
     return keywordTokenSets.some((keywordTokens) => sourceTokenSets.some((sourceTokens) => containsKeywordSequence(sourceTokens, keywordTokens)));
 };
 // --- Rate limiter & metrics for external API calls ---
-const RATE_LIMIT = Number(process.env.TCGCSV_RATE_LIMIT || '10');
+const RATE_LIMIT = Number(process.env.TCGCSV_RATE_LIMIT || '9');
 const rateLimitedAxios = (0, concurrent_pipeline_1.createRateLimitedAxios)(RATE_LIMIT);
-setInterval(() => {
-    console.info(`[rate] limit: ${RATE_LIMIT}/s`);
-}, 5000);
+// setInterval(() => {
+//   console.info(`[rate] limit: ${RATE_LIMIT}/s`)
+// }, 5000)
+// --- end rate limiter ---
+/**
+ * Makes a rate-limited GET request
+ * @param url - The URL to request
+ * @param opts - Optional request options
+ * @returns Promise resolving to the response data
+ */
 const rateLimitedGet = async (url, opts) => {
     return rateLimitedAxios.get(url, opts);
 };
-// --- end rate limiter ---
-// Main combined hook function
+/**
+ * Main combined hook function that fetches games, sets, and processes products and prices
+ * @param context - The hook context
+ */
 const combinedHook = async (context) => {
     console.time('Total Execution Time');
-    console.log(`Running combined hook on ${context.path}.${context.method}`);
+    // console.log(`Running combined hook on ${context.path}.${context.method}`)
     console.time('fetchGames');
     await fetchGames(context);
     console.timeEnd('fetchGames');
@@ -135,23 +173,10 @@ const combinedHook = async (context) => {
     console.timeEnd('Total Execution Time');
 };
 exports.combinedHook = combinedHook;
-// const fetchGames = async (context: HookContext) => {
-//   console.log('fetching games')
-//   const response = await axios.get(`https://tcgcsv.com/tcgplayer/categories`)
-//   const games = response.data.results
-//   for (const game of games) {
-//     const existingGame = await context.app.service('games').find({
-//       query: { 'external_id.tcgcsv_id': Number(game.categoryId) }
-//     })
-//     if (existingGame.total == 0 && ![21, 69, 70, 82].includes(Number(game.categoryId))) {
-//       context.app.service('games').create({
-//         name: game.displayName,
-//         external_id: { tcgcsv_id: game.categoryId },
-//         logo: `/assets/images/logos/${game.name}.png`
-//       })
-//     }
-//   }
-// }
+/**
+ * Fetches games from the TCGCSV API and creates new games in the database
+ * @param context - The hook context
+ */
 const fetchGames = async (context) => {
     console.log('fetching games');
     const response = await rateLimitedGet(`https://tcgcsv.com/tcgplayer/categories`);
@@ -169,54 +194,10 @@ const fetchGames = async (context) => {
         await context.app.service('games').create(newGames);
     }
 };
-// const fetchSets = async (context: HookContext) => {
-//   console.log('fetching sets')
-//   let startTime = Date.now()
-//   try {
-//     const gamesData = await context.app.service('games').find({ query: { $limit: 100000 } })
-//     const games = gamesData.data
-//     const groupPromises = games.map(async (game) => {
-//       const externalId = game.external_id.tcgcsv_id
-//       try {
-//         const response = await axios.get(`https://tcgcsv.com/tcgplayer/${externalId}/groups`)
-//         return { game, groups: response.data.results }
-//       } catch (error) {
-//         console.log(`Error fetching groups for externalId ${externalId}:`, error)
-//         return { game, groups: [] }
-//       }
-//     })
-//     console.time('API Calls - fetchSets')
-//     const groupsData = await Promise.all(groupPromises)
-//     console.timeEnd('API Calls - fetchSets')
-//     console.time('Database Inserts - fetchSets')
-//     const setPromises = groupsData.flatMap(({ game, groups }) =>
-//       groups.map(async (group: any) => {
-//         const existingSet = await context.app.service('sets').find({
-//           query: { game_id: game._id, ['external_id.tcgcsv_id']: Number(group.groupId) }
-//         })
-//         if (existingSet.total === 0) {
-//           await context.app.service('sets').create({
-//             game_id: game._id,
-//             name: group.name,
-//             code: typeof group.abbreviation == 'string' ? (group.abbreviation as string) : '',
-//             external_id: { tcgcsv_id: Number(group.groupId) }
-//           })
-//         } else if (existingSet.total === 1) {
-//           if (typeof group.abbreviation == 'string') {
-//             await context.app.service('sets').patch(existingSet.data[0]._id as string, {
-//               code: group.abbreviation as string
-//             })
-//           }
-//         }
-//       })
-//     )
-//     await Promise.all(setPromises)
-//     console.timeEnd('Database Inserts - fetchSets')
-//   } catch (error) {
-//     console.error('Error fetching games:', error)
-//   }
-//   console.log(`fetchSets completed in ${(Date.now() - startTime) / 1000} seconds`)
-// }
+/**
+ * Fetches sets for each game using a concurrent pipeline and updates or creates sets in the database
+ * @param context - The hook context
+ */
 const fetchSets = async (context) => {
     console.log('fetching sets');
     const games = await context.app.service('games').find({ query: {}, paginate: false });
@@ -264,8 +245,7 @@ const fetchSets = async (context) => {
                 const groupId = Number(group.groupId);
                 const existingSet = existingSetMap.get(groupId);
                 if (existingSet) {
-                    const needsUpdate = existingSet.name !== group.name ||
-                        existingSet.code !== (group.abbreviation || '');
+                    const needsUpdate = existingSet.name !== group.name || existingSet.code !== (group.abbreviation || '');
                     if (needsUpdate) {
                         localSetsToUpdate.push({
                             id: existingSet._id,
@@ -321,6 +301,11 @@ const fetchSets = async (context) => {
     const totalDuration = Date.now() - startTime;
     console.log(`[fetchSets] Completed. New: ${newSets.length}, Updated: ${setsToUpdate.length}, Errors: ${errors.length}, Total duration: ${totalDuration}ms`);
 };
+/**
+ * Parses a string to a number if possible, otherwise returns the string
+ * @param input - The string to parse
+ * @returns The parsed number or the original string
+ */
 const parseNumberOrString = (input) => {
     const parsedNumber = parseFloat(input);
     // Check if parsedNumber is a valid number
@@ -331,6 +316,11 @@ const parseNumberOrString = (input) => {
     // If parsing succeeded, return the number
     return parsedNumber;
 };
+/**
+ * Extracts product data from a found product and returns a new product object
+ * @param foundProduct - The product data from the API
+ * @returns A new product object with extracted data
+ */
 const extractProductData = (foundProduct) => {
     const dataArray = [];
     const newProduct = {};
@@ -569,98 +559,10 @@ const extractProductData = (foundProduct) => {
 //   fetchProducts()
 //   console.timeEnd('processProductsAndPrices Total Time')
 // }
-// const determineProductType = (foundProduct: any, rarity: string) => {
-//   const { extendedData, name, url } = foundProduct
-//   const categoryId = foundProduct.categoryId || 0
-//   const isPresale = foundProduct.presaleInfo.isPresale == true ? true : false;
-//   if (isPresale) {
-//     return 'Presale'
-//   }
-//   if (rarity !== '') {
-//     return 'Single Cards'
-//   }
-//   const extendedName = extendedData.length > 0 ? extendedData[0].name : '' //kinda hacky.
-//   if (extendedName.includes('Number')){
-//     return 'Single Cards'
-//   }
-//   if (extendedName.includes('Token')) return 'Single Cards' //might not do anything
-//   // Direct keyword checks for single card
-//   if (
-//     name.includes('Energy') ||
-//     name.includes('Token') ||
-//     name.includes('Code Card') ||
-//     name.includes('Land') ||
-//     name.includes('Art Card') ||
-//     name.includes('Checklist Card') ||
-//     name.includes('Decklist Card') ||
-//     url.includes('art-series')
-//   ) {
-//     return 'Single Cards'
-//   }
-//   // Direct keyword checks for boosters
-//   if (
-//     name.includes('Booster') ||
-//     name.includes('Double Pack') ||
-//     name.includes('VIP Edition Pack') ||
-//     name.includes('Box Topper') ||
-//     name.includes('Blister') ||
-//     name.includes('Anniversary Edition Pack') ||
-//     name.includes('Anniversary Edition Display') ||
-//     name.includes('Jumpstart') ||
-//     name.includes('VIP Edition') ||
-//     name.includes('Mythic Edition')
-//   ) {
-//     return 'Boosters'
-//   }
-//   if (name.includes('Commander')) {
-//     const yearMatch = name.match(/Commander (\d{4})/)
-//     if (yearMatch) return 'Decks'
-//   }
-//   // Direct keyword checks for decks
-//   if (
-//     name.includes('Deck') ||
-//     name.includes('Intro Pack') ||
-//     name.includes('Commander Collection') ||
-//     name.includes('Guild Kit') ||
-//     name.includes('Global Series') ||
-//     (name.includes('Tournament Pack') && categoryId === 1) ||
-//     (name.includes('Commander') && name.includes('Set of'))
-//   ) {
-//     return 'Decks'
-//   }
-//   if (name.includes('SDCC')) {
-//     const yearMatch = name.match(/SDCC (\d{4})/)
-//     if (yearMatch) return 'Promotion Cards'
-//   }
-//   if ((name.includes('Tournament Pack') && categoryId !== 1) || name.includes('Promo Pack') || name.includes('Promotional'))
-//     return 'Promotion Cards'
-//   // Direct keyword checks for other categories
-//   if (name.includes('Box Set') || name.includes('Game Night') || name.includes('Scene Box'))
-//     return 'Box Sets'
-//   if (name.includes('Retail Tin')) return 'Tins'
-//   if (name.includes('Elite Trainer Box')) return 'Elite Trainer Boxes'
-//   if (name.includes('Build & Battle Box')) return 'Build & Battle Boxes'
-//   if (
-//     name.includes('Fat Pack') ||
-//     name.includes('- Bundle') ||
-//     name.includes('- Gift Bundle') ||
-//     (name.includes('Gift Box') && categoryId === 1) ||
-//     name.includes('Gift Pack') ||
-//     name.includes('Gift Edition')
-//   )
-//     return 'Bundles'
-//   if (name.includes('Spindown ')) {
-//     return 'Spindown Dice'
-//   }
-//   if (name.includes('Starter Set') || name.includes('Starter Kit') || name.includes('Clash Pack'))
-//     return 'Starter Kits'
-//   if (name.includes('Prerelease')) return 'Prerelease Packs'
-//   if (name.includes('Secret Lair')) return 'Secret Lair Drop'
-//   // Check for rarity-based single card
-//  // if (rarity) return 'Single Cards - Leak'
-//   // Default case
-//   return 'Sealed'
-// }
+/**
+ * Processes products and prices for all sets using a concurrent pipeline, handling creation, updates, and migrations
+ * @param context - The hook context
+ */
 const processProductsAndPrices = async (context) => {
     console.log(`Running processProductsAndPrices on ${context.path}.${context.method}`);
     console.time('processProductsAndPrices Total Time');
@@ -675,14 +577,10 @@ const processProductsAndPrices = async (context) => {
     const setMap = new Map(sets.map((set) => [set._id.toString(), set]));
     const existingProductsMap = new Map();
     existingProducts.forEach((p) => {
-        const name = p.name;
-        const extId = p.external_id?.tcgcsv_id?.toString();
-        if (!name || !extId)
-            return;
-        if (!existingProductsMap.has(name)) {
-            existingProductsMap.set(name, new Map());
+        const key = buildProductKey(p.external_id?.tcgcsv_id?.toString() || '', p.type || 'Sealed', p.collector_number || '', p.rarity || '', p.print || '', p.finish || '', p.set_id?.toString() || '');
+        if (key) {
+            existingProductsMap.set(key, p._id);
         }
-        existingProductsMap.get(name).set(extId, p._id);
     });
     const newProductsMap = new Map();
     const errors = [];
@@ -712,7 +610,21 @@ const processProductsAndPrices = async (context) => {
                     rateLimitedGet(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`)
                 ]);
                 const productData = productResponse.results || [];
-                const priceData = priceResponse.results || [];
+                let priceData = priceResponse.results || [];
+                // Deduplicate prices by productId and subTypeName
+                const priceMap = new Map();
+                const priceCountBefore = priceData.length;
+                priceData.forEach((p) => {
+                    const key = `${p.productId}_${p.subTypeName || 'Normal'}`;
+                    if (!priceMap.has(key)) {
+                        priceMap.set(key, p);
+                    }
+                });
+                priceData = Array.from(priceMap.values());
+                const duplicatesRemoved = priceCountBefore - priceData.length;
+                if (duplicatesRemoved > 0) {
+                    console.log(`[processProductsAndPrices] Set ${set._id}: Deduplicated ${duplicatesRemoved} price entries from API response`);
+                }
                 const products = productData.map((p) => {
                     const sources = [set.name ?? '', set.code ?? '', p.name ?? ''];
                     const anniversary = keywordMatch(sources, EVENT_KEYWORD_BUCKETS.anniversary);
@@ -742,6 +654,7 @@ const processProductsAndPrices = async (context) => {
         });
     }
     pipeline.onProcess(async ({ set, products, prices }) => {
+        const batchDuplicates = new Map();
         const localNewProducts = [];
         const localUpdatedProducts = [];
         const localMigrations = [];
@@ -773,11 +686,24 @@ const processProductsAndPrices = async (context) => {
                 newProduct.print = printKey;
                 newProduct.finish = finishKey;
                 const extIdStr = newProduct.external_id.tcgcsv_id.toString();
+                const productKey = buildProductKey(extIdStr, newProduct.type, newProduct.collector_number || '', newProduct.rarity || '', printKey, finishKey, newProduct.set_id.toString());
                 const eventSuffixes = [
-                    { condition: prod.pre_release, suffix: '(Pre-Release Event)', keywords: EVENT_KEYWORD_BUCKETS.preRelease },
+                    {
+                        condition: prod.pre_release,
+                        suffix: '(Pre-Release Event)',
+                        keywords: EVENT_KEYWORD_BUCKETS.preRelease
+                    },
                     { condition: prod.release, suffix: '(Release Event)', keywords: EVENT_KEYWORD_BUCKETS.release },
-                    { condition: prod.anniversary, suffix: '(Anniversary Event)', keywords: EVENT_KEYWORD_BUCKETS.anniversary },
-                    { condition: prod.promo && newProduct.rarity !== 'Promo', suffix: '(Promo)', keywords: PROMO_KEYWORDS }
+                    {
+                        condition: prod.anniversary,
+                        suffix: '(Anniversary Event)',
+                        keywords: EVENT_KEYWORD_BUCKETS.anniversary
+                    },
+                    {
+                        condition: (prod.promo || newProduct.rarity === 'PR') && newProduct.rarity !== 'Promo',
+                        suffix: '(Promo)',
+                        keywords: PROMO_SUFFIX_KEYWORDS
+                    }
                 ];
                 for (const { condition, suffix, keywords } of eventSuffixes) {
                     if (condition) {
@@ -817,92 +743,65 @@ const processProductsAndPrices = async (context) => {
                         newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}${rarityText})`;
                     }
                 }
+                // Apply set-specific name disambiguation before duplicate check
                 const setData = setMap.get(newProduct.set_id.toString());
                 if (setData && setData.name === 'The List Reprints' && !newProduct.name.includes('(LIST)')) {
                     newProduct.name += ' (LIST)';
                 }
-                const nameExists = existingProductsMap.has(newProduct.name) || newProductsMap.has(newProduct.name);
-                if (!nameExists) {
-                    localNewProducts.push(newProduct);
-                    newProductsMap.set(newProduct.name, new Map([[extIdStr, true]]));
+                if (setData &&
+                    setData.name.includes('Revision Pack') &&
+                    (setData.code === 'OPRP' || setData.code === 'RP20' || setData.code === 'RPC')) {
+                    newProduct.name += ' (Revision Pack)';
                 }
-                else {
-                    const extMapExisting = existingProductsMap.get(newProduct.name);
-                    const extMapNew = newProductsMap.get(newProduct.name);
-                    const compositeExists = (extMapExisting && extMapExisting.has(extIdStr)) ||
-                        (extMapNew && extMapNew.has(extIdStr));
-                    if (compositeExists) {
-                        let existingId = extMapExisting.get(extIdStr);
-                        localUpdatedProducts.push({
-                            id: existingId.toString(),
-                            data: {
-                                name: newProduct.name,
-                                type: newProduct.type,
-                                print: printKey,
-                                finish: finishKey,
-                                event_types: newProduct.event_types,
-                                market_price: newProduct.market_price,
-                                low_price: newProduct.low_price,
-                                mid_price: newProduct.mid_price,
-                                high_price: newProduct.high_price,
-                                direct_low_price: newProduct.direct_low_price
-                            }
-                        });
-                    }
-                    else {
-                        if (setData) {
-                            let code = setData.code && setData.code !== '' ? setData.code : setData.name;
-                            if (setData.name === 'The List Reprints') {
-                                code = '';
-                            }
-                            if (code === 'POP') {
-                                code = setData.name;
-                            }
+                const keyExists = existingProductsMap.has(productKey) || newProductsMap.has(productKey);
+                if (!keyExists) {
+                    if (newProduct.name.includes('DON!! Card') && setData) {
+                        let code = setData.code && setData.code !== '' ? setData.code : setData.name;
+                        if (code) {
                             newProduct.name += ` (${code})`;
                         }
-                        const newCompositeExists = (existingProductsMap.has(newProduct.name) &&
-                            existingProductsMap.get(newProduct.name).has(extIdStr)) ||
-                            (newProductsMap.has(newProduct.name) &&
-                                newProductsMap.get(newProduct.name).has(extIdStr));
-                        if (newCompositeExists) {
-                            let existingId = existingProductsMap
-                                .get(newProduct.name)
-                                ?.get(extIdStr);
-                            localUpdatedProducts.push({
-                                id: existingId.toString(),
-                                data: {
-                                    name: newProduct.name,
-                                    type: newProduct.type,
-                                    print: printKey,
-                                    finish: finishKey,
-                                    event_types: newProduct.event_types,
-                                    market_price: price.marketPrice ? Number(price.marketPrice) : -1,
-                                    low_price: price.lowPrice ? Number(price.lowPrice) : -1,
-                                    mid_price: price.midPrice ? Number(price.midPrice) : -1,
-                                    high_price: price.highPrice ? Number(price.highPrice) : -1,
-                                    direct_low_price: price.directLowPrice ? Number(price.directLowPrice) : -1
-                                }
-                            });
-                            if (!newProductsMap.has(newProduct.name)) {
-                                newProductsMap.set(newProduct.name, new Map());
-                            }
-                            newProductsMap.get(newProduct.name).set(extIdStr, true);
-                        }
-                        else {
-                            localNewProducts.push(newProduct);
-                            if (!newProductsMap.has(newProduct.name)) {
-                                newProductsMap.set(newProduct.name, new Map());
-                            }
-                            newProductsMap.get(newProduct.name).set(extIdStr, true);
-                        }
                     }
+                    localNewProducts.push(newProduct);
+                    newProductsMap.set(productKey, true);
+                    batchDuplicates.set(productKey, (batchDuplicates.get(productKey) || 0) + 1);
+                }
+                else {
+                    const existingId = existingProductsMap.get(productKey);
+                    localUpdatedProducts.push({
+                        id: existingId.toString(),
+                        data: {
+                            name: newProduct.name,
+                            type: newProduct.type,
+                            print: printKey,
+                            finish: finishKey,
+                            event_types: newProduct.event_types,
+                            market_price: newProduct.market_price,
+                            low_price: newProduct.low_price,
+                            mid_price: newProduct.mid_price,
+                            high_price: newProduct.high_price,
+                            direct_low_price: newProduct.direct_low_price
+                        }
+                    });
                 }
             }
             processedCount++;
             if (processedCount % 100 === 0) {
                 const elapsed = Date.now() - startTime;
                 const rate = processedCount / (elapsed / 1000);
-                console.log(`[processProductsAndPrices] Processed ${processedCount}/${totalSets} sets (${rate.toFixed(2)}/s)`);
+                // console.log(
+                //   `[processProductsAndPrices] Processed ${processedCount}/${totalSets} sets (${rate.toFixed(2)}/s)`
+                // )
+            }
+            // Log batch duplicates if any were detected
+            let duplicateCount = 0;
+            for (const [key, count] of batchDuplicates) {
+                if (count > 1) {
+                    duplicateCount++;
+                    console.log(`[processProductsAndPrices] Duplicate detected in batch - key: ${key}, count: ${count}`);
+                }
+            }
+            if (duplicateCount === 0 && localNewProducts.length > 0) {
+                // Batch processed cleanly
             }
             return {
                 newProducts: localNewProducts,
@@ -940,7 +839,7 @@ const processProductsAndPrices = async (context) => {
     if (productsToMigrate.length > 0) {
         console.log(`[processProductsAndPrices] Migrating ${productsToMigrate.length} products between sets`);
         const migrationLimit = (0, p_limit_1.default)(5);
-        const migrationPromises = productsToMigrate.map(migration => migrationLimit(async () => {
+        const migrationPromises = productsToMigrate.map((migration) => migrationLimit(async () => {
             const currentSet = setMap.get(migration.currentSetId);
             const newSet = setMap.get(migration.newSetId);
             console.log(`[processProductsAndPrices] Migrating product "${migration.name}" from set "${currentSet?.name}" to "${newSet?.name}"`);
@@ -950,12 +849,45 @@ const processProductsAndPrices = async (context) => {
                 });
             }
             catch (err) {
-                console.error('[processProductsAndPrices] Error migrating product', migration.id, { currentSet: currentSet?.name, newSet: newSet?.name, error: err });
+                console.error('[processProductsAndPrices] Error migrating product', migration.id, {
+                    currentSet: currentSet?.name,
+                    newSet: newSet?.name,
+                    error: err
+                });
             }
         }));
         await Promise.all(migrationPromises);
     }
     console.timeEnd('Product Migrations');
+    console.time('Final Name Disambiguation Sweep');
+    const duplicateGroups = await context.app.service('products').find({
+        query: {
+            type: 'Single Cards'
+        },
+        pipeline: [
+            {
+                $group: {
+                    _id: { name: '$name', tcgcsv_id: '$external_id.tcgcsv_id' },
+                    products: {
+                        $push: {
+                            _id: '$_id',
+                            name: '$name',
+                            tcgcsv_id: '$external_id.tcgcsv_id',
+                            set_id: '$set_id'
+                        }
+                    },
+                    uniqueTcgcsvIds: { $addToSet: '$external_id.tcgcsv_id' },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $match: { 'uniqueTcgcsvIds.1': { exists: true } }
+            }
+        ],
+        paginate: false
+    });
+    console.log(duplicateGroups);
+    console.timeEnd('Duplicate Product Review');
     const totalDuration = Date.now() - startTime;
     console.log(`[processProductsAndPrices] Completed. Total sets: ${processedCount}, Errors: ${errors.length}, Total duration: ${totalDuration}ms`);
     if (errors.length > 0) {
@@ -969,6 +901,11 @@ const processProductsAndPrices = async (context) => {
     }
     console.timeEnd('processProductsAndPrices Total Time');
 };
+/**
+ * Removes leading zeros from a string, handling fractional numbers with '/'
+ * @param str - The string to process
+ * @returns The string with leading zeros removed
+ */
 const removeLeadingZeros = (str) => {
     if (str == undefined) {
         return 'undefined';
@@ -984,6 +921,12 @@ const removeLeadingZeros = (str) => {
         return str.replace(/^0+/, '');
     }
 };
+/**
+ * Determines the product type based on product data and rarity
+ * @param foundProduct - The product data
+ * @param rarity - The product rarity
+ * @returns The determined product type
+ */
 const determineProductType = (foundProduct, rarity) => {
     const { extendedData, name, url, categoryId } = foundProduct;
     if (foundProduct.presaleInfo?.isPresale)
@@ -996,7 +939,22 @@ const determineProductType = (foundProduct, rarity) => {
     }
     if (extendedData?.some((d) => d.name.includes('Number')))
         return 'Single Cards';
-    return 'Sealed'; // Default fallback
+    return 'Sealed';
+};
+/**
+ * Builds a unique key for a product based on its attributes
+ * @param tcgcsvId - The TCGCSV ID
+ * @param type - Product type
+ * @param collectorNumber - Collector number
+ * @param rarity - Rarity
+ * @param print - Print type
+ * @param finish - Finish type
+ * @param setId - Set ID
+ * @returns A unique product key string
+ */
+const buildProductKey = (tcgcsvId, type, collectorNumber, rarity, print, finish, setId) => {
+    // Unified key derivation for all types to avoid mismatches
+    return `${tcgcsvId}_${collectorNumber || 'NA'}_${rarity || 'NA'}_${print || 'NA'}_${finish || 'NA'}`;
 };
 //if (
 //   (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||

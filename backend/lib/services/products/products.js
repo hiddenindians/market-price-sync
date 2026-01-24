@@ -33,7 +33,7 @@ const products = (app) => {
         // A list of all methods this service exposes externally
         methods: products_shared_1.productsMethods,
         // You can add additional custom events to be sent to clients here
-        events: [],
+        events: []
     });
     // Initialize hooks
     app.service(products_shared_1.productsPath).hooks({
@@ -64,7 +64,7 @@ const products = (app) => {
         after: {
             all: [],
             create: [return_only_id_1.returnOnlyId],
-            find: [filter_store_status_1.filterStoreStatus],
+            find: [filter_store_status_1.filterStoreStatus]
         },
         error: {
             all: []

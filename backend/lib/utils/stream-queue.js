@@ -37,7 +37,7 @@ class StreamQueue {
             }
             if (timestamps.length >= rateLimit) {
                 const waitTime = windowMs - (now - timestamps[0]) + 2;
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                await new Promise((resolve) => setTimeout(resolve, waitTime));
             }
             timestamps.push(now);
         };
@@ -124,7 +124,7 @@ function createRateLimitedFetch(options) {
         }
         if (timestamps.length >= rateLimit) {
             const waitTime = windowMs - (now - timestamps[0]) + 2;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
         }
         timestamps.push(now);
         totalRequests++;
@@ -162,7 +162,7 @@ function createRateLimitedFetchWithAxios(rateLimit, windowMs = 1000) {
         }
         if (timestamps.length >= rateLimit) {
             const waitTime = windowMs - (now - timestamps[0]) + 2;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
         }
         timestamps.push(now);
         totalRequests++;

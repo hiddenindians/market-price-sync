@@ -15,13 +15,13 @@ exports.pricesSchema = typebox_1.Type.Object({
     low_price: typebox_1.Type.Optional(typebox_1.Type.Number()),
     mid_price: typebox_1.Type.Optional(typebox_1.Type.Number()),
     high_price: typebox_1.Type.Optional(typebox_1.Type.Number()),
-    direct_low_price: typebox_1.Type.Optional(typebox_1.Type.Number()),
+    direct_low_price: typebox_1.Type.Optional(typebox_1.Type.Number())
 }, { $id: 'Prices', additionalProperties: false });
 exports.pricesValidator = (0, typebox_1.getValidator)(exports.pricesSchema, validators_1.dataValidator);
 exports.pricesResolver = (0, schema_1.resolve)({});
 exports.pricesExternalResolver = (0, schema_1.resolve)({});
 // Schema for creating new entries
-exports.pricesDataSchema = typebox_1.Type.Pick(exports.pricesSchema, ['timestamp', 'market_price', 'product_id', 'low_price', 'mid_price', 'high_price', "direct_low_price"], {
+exports.pricesDataSchema = typebox_1.Type.Pick(exports.pricesSchema, ['timestamp', 'market_price', 'product_id', 'low_price', 'mid_price', 'high_price', 'direct_low_price'], {
     $id: 'PricesData'
 });
 exports.pricesDataValidator = (0, typebox_1.getValidator)(exports.pricesDataSchema, validators_1.dataValidator);
@@ -33,7 +33,12 @@ exports.pricesPatchSchema = typebox_1.Type.Partial(exports.pricesSchema, {
 exports.pricesPatchValidator = (0, typebox_1.getValidator)(exports.pricesPatchSchema, validators_1.dataValidator);
 exports.pricesPatchResolver = (0, schema_1.resolve)({});
 // Schema for allowed query properties
-exports.pricesQueryProperties = typebox_1.Type.Pick(exports.pricesSchema, ['_id', 'timestamp', 'market_price', 'product_id']);
+exports.pricesQueryProperties = typebox_1.Type.Pick(exports.pricesSchema, [
+    '_id',
+    'timestamp',
+    'market_price',
+    'product_id'
+]);
 exports.pricesQuerySchema = typebox_1.Type.Intersect([
     (0, typebox_1.querySyntax)(exports.pricesQueryProperties),
     // Add additional query properties here

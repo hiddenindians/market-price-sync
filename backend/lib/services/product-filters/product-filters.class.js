@@ -35,18 +35,9 @@ class ProductFiltersService {
             { $match: matchStage },
             {
                 $facet: {
-                    rarities: [
-                        { $match: { rarity: { $type: 'string' } } },
-                        { $group: { _id: '$rarity' } }
-                    ],
-                    prints: [
-                        { $match: { print: { $type: 'string' } } },
-                        { $group: { _id: '$print' } }
-                    ],
-                    finishes: [
-                        { $match: { finish: { $type: 'string' } } },
-                        { $group: { _id: '$finish' } }
-                    ],
+                    rarities: [{ $match: { rarity: { $type: 'string' } } }, { $group: { _id: '$rarity' } }],
+                    prints: [{ $match: { print: { $type: 'string' } } }, { $group: { _id: '$print' } }],
+                    finishes: [{ $match: { finish: { $type: 'string' } } }, { $group: { _id: '$finish' } }],
                     events: [
                         { $unwind: { path: '$event_types', preserveNullAndEmptyArrays: false } },
                         { $match: { event_types: { $type: 'string' } } },
@@ -59,9 +50,7 @@ class ProductFiltersService {
         const rawRarities = (aggregationResult?.rarities ?? []).map((entry) => entry?._id);
         const rarities = rawRarities.filter(isNonEmptyString).sort((a, b) => a.localeCompare(b));
         const rawFinishes = (aggregationResult?.finishes ?? []).map((entry) => entry?._id);
-        const normalizedFinishKeys = rawFinishes
-            .filter(isNonEmptyString)
-            .map((key) => (0, print_normalizer_1.deriveFinishKey)(key));
+        const normalizedFinishKeys = rawFinishes.filter(isNonEmptyString).map((key) => (0, print_normalizer_1.deriveFinishKey)(key));
         const uniqueFinishes = Array.from(new Set(normalizedFinishKeys));
         if (!uniqueFinishes.includes('base')) {
             uniqueFinishes.unshift('base');
@@ -70,8 +59,7 @@ class ProductFiltersService {
             .map((key) => ({ key, label: (0, print_normalizer_1.getPrintLabel)(key) }))
             .sort((a, b) => a.label.localeCompare(b.label));
         const rawPrints = (aggregationResult?.prints ?? []).map((entry) => entry?._id);
-        const uniquePrints = Array.from(new Set(rawPrints.filter(isNonEmptyString)))
-            .filter((key) => !(0, print_normalizer_1.isFinishKey)(key) || key === 'base');
+        const uniquePrints = Array.from(new Set(rawPrints.filter(isNonEmptyString))).filter((key) => !(0, print_normalizer_1.isFinishKey)(key) || key === 'base');
         if (!uniquePrints.includes('base')) {
             uniquePrints.unshift('base');
         }

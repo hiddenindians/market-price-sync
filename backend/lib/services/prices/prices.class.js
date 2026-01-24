@@ -9,7 +9,10 @@ exports.PricesService = PricesService;
 const getOptions = (app) => {
     return {
         paginate: app.get('paginate'),
-        Model: app.get('mongodbClient').then((db) => db.collection('prices')).then((collection) => {
+        Model: app
+            .get('mongodbClient')
+            .then((db) => db.collection('prices'))
+            .then((collection) => {
             collection.createIndex({ product_id: 1 });
             return collection;
         })

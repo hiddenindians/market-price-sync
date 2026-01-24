@@ -39,9 +39,7 @@ const fetchGames = (app) => {
             all: [],
             find: [],
             get: [],
-            create: [
-                update_data_1.combinedHook
-            ],
+            create: [update_data_1.combinedHook],
             patch: [],
             remove: []
         },

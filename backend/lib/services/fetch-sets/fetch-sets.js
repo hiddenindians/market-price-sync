@@ -42,7 +42,8 @@ const fetchSets = (app) => {
             all: [],
             find: [],
             get: [],
-            create: [async () => {
+            create: [
+                async () => {
                     let startTime = Date.now();
                     try {
                         const data = await app.service('games').find({ query: { $limit: 100000 } });
@@ -68,7 +69,7 @@ const fetchSets = (app) => {
                                         const setData = await app.service('sets').find({
                                             query: {
                                                 game_id: result._id,
-                                                name: group.name,
+                                                name: group.name
                                             }
                                         });
                                         if (setData.total == 0) {

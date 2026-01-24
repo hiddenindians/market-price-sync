@@ -1,8 +1,8 @@
-import { AuthenticationService } from '@feathersjs/authentication'
-import type { Application } from './declarations'
+import { AuthenticationService } from '@feathersjs/authentication';
+import type { Application } from './declarations';
 declare module './declarations' {
-  interface ServiceTypes {
-    authentication: AuthenticationService
-  }
+    interface ServiceTypes {
+        authentication: AuthenticationService;
+    }
 }
-export declare const authentication: (app: Application) => void
+export declare const authentication: (app: Application) => void;

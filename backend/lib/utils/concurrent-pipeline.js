@@ -24,6 +24,10 @@ class ConcurrentPipeline {
         this.startTime = 0;
         this.totalTasks = 0;
         this.completedTasks = 0;
+        this.taskAdditionComplete = false;
+        this.taskAdditionResolver = null;
+        this.completionResolver = null;
+        this.completionPromise = Promise.resolve();
         this.fetchLimiter = (0, p_limit_1.default)(options.fetchConcurrency);
         this.processLimiter = (0, p_limit_1.default)(options.processConcurrency);
         this.dbLimiter = (0, p_limit_1.default)(options.dbConcurrency);
@@ -41,28 +45,37 @@ class ConcurrentPipeline {
         this.totalTasks++;
         this.fetchQueue.push(task);
     }
+    signalTaskAdditionComplete() {
+        this.taskAdditionComplete = true;
+        if (this.taskAdditionResolver) {
+            this.taskAdditionResolver();
+            this.taskAdditionResolver = null;
+        }
+    }
     async run() {
         this.startTime = Date.now();
-        console.log(`[pipeline] Starting with fetchConcurrency=${this.options.fetchConcurrency}, processConcurrency=${this.options.processConcurrency}, dbConcurrency=${this.options.dbConcurrency}, rateLimit=${this.options.rateLimit}/s, dbBatchSize=${this.options.dbBatchSize}`);
+        this.completionPromise = new Promise((resolve) => {
+            this.completionResolver = resolve;
+        });
+        this.signalTaskAdditionComplete();
         const fetchPromises = [];
         for (let i = 0; i < this.options.fetchConcurrency; i++) {
             fetchPromises.push(this.fetchWorker());
         }
         await Promise.all(fetchPromises);
-        console.log(`[pipeline] All fetches complete. processQueue: ${this.processQueue.length}, activeFetchers: ${this.activeFetchers}`);
         const totalDuration = Date.now() - this.startTime;
-        console.log(`[pipeline] Completed in ${totalDuration}ms`);
     }
     async acquireToken() {
-        const now = Date.now();
-        const elapsed = now - this.lastRefill;
+        let now = Date.now();
+        let elapsed = now - this.lastRefill;
         if (elapsed >= this.refillMs) {
             this.tokens = Math.min(this.options.rateLimit, Math.floor(elapsed / this.refillMs) + this.tokens);
             this.lastRefill = now;
         }
         while (this.tokens <= 0) {
-            await new Promise(resolve => setTimeout(resolve, this.refillMs));
-            const elapsed = now - this.lastRefill;
+            await new Promise((resolve) => setTimeout(resolve, this.refillMs));
+            now = Date.now();
+            elapsed = now - this.lastRefill;
             if (elapsed >= this.refillMs) {
                 this.tokens = Math.min(this.options.rateLimit, Math.floor(elapsed / this.refillMs) + this.tokens);
                 this.lastRefill = now;
@@ -74,21 +87,46 @@ class ConcurrentPipeline {
         while (true) {
             const task = this.fetchQueue.shift();
             if (!task) {
-                await new Promise(resolve => setTimeout(resolve, 10));
+                if (!this.taskAdditionComplete) {
+                    await new Promise((resolve) => {
+                        this.taskAdditionResolver = resolve;
+                    });
+                    continue;
+                }
                 if (this.completedTasks >= this.totalTasks) {
                     break;
                 }
+                if (this.activeFetchers > 0) {
+                    await this.completionPromise;
+                    continue;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 10));
                 continue;
             }
             await this.fetchLimiter(async () => {
                 this.activeFetchers++;
                 try {
                     await this.acquireToken();
-                    await task();
+                    const result = await task();
+                    if (result && this.processCallback) {
+                        const processedData = await this.processCallback(result);
+                        this.dbNewQueue.push(...processedData.newProducts);
+                        this.dbUpdateQueue.push(...processedData.updatedProducts);
+                        this.migrationQueue.push(...processedData.productsToMigrate);
+                        this.startDbWriter();
+                        if (this.dbNewQueue.length >= this.options.dbBatchSize ||
+                            this.dbUpdateQueue.length >= this.options.dbBatchSize) {
+                            await this.commitDbBatch();
+                        }
+                    }
                 }
                 finally {
                     this.activeFetchers--;
                     this.completedTasks++;
+                    if (this.completionResolver && this.completedTasks >= this.totalTasks) {
+                        this.completionResolver();
+                        this.completionResolver = null;
+                    }
                 }
             });
         }
@@ -106,7 +144,8 @@ class ConcurrentPipeline {
                     this.dbUpdateQueue.push(...result.updatedProducts);
                     this.migrationQueue.push(...result.productsToMigrate);
                     this.startDbWriter();
-                    if (this.dbNewQueue.length >= this.options.dbBatchSize || this.dbUpdateQueue.length >= this.options.dbBatchSize) {
+                    if (this.dbNewQueue.length >= this.options.dbBatchSize ||
+                        this.dbUpdateQueue.length >= this.options.dbBatchSize) {
                         await this.commitDbBatch();
                     }
                 }
@@ -121,7 +160,9 @@ class ConcurrentPipeline {
         }
     }
     startDbWriter() {
-        while ((this.dbNewQueue.length >= this.options.dbBatchSize || this.dbUpdateQueue.length >= this.options.dbBatchSize) && this.activeDbWriters < this.options.dbConcurrency) {
+        while ((this.dbNewQueue.length >= this.options.dbBatchSize ||
+            this.dbUpdateQueue.length >= this.options.dbBatchSize) &&
+            this.activeDbWriters < this.options.dbConcurrency) {
             this.activeDbWriters++;
             this.dbLimiter(async () => {
                 await this.commitDbBatch();
@@ -135,29 +176,79 @@ class ConcurrentPipeline {
         }
         try {
             if (!this.context) {
-                console.warn(`[pipeline] No context set, skipping DB commit`);
                 return;
             }
             const productsCollection = await this.context.app.service('products').getModel();
             if (this.dbNewQueue.length > 0) {
                 const batch = this.dbNewQueue.splice(0, this.options.dbBatchSize);
-                console.log(`[pipeline] DB: Inserting ${batch.length} new products`);
-                await productsCollection.insertMany(batch, { ordered: false });
+                try {
+                    await productsCollection.insertMany(batch, { ordered: false });
+                }
+                catch (error) {
+                    if (error.code === 11000) {
+                        // Gracefully handle duplicate key errors
+                        const successCount = error.result?.insertedCount || 0;
+                        const failCount = batch.length - successCount;
+                        console.log(`[pipeline] Insert batch partially completed: ${successCount} inserted, ${failCount} duplicates skipped`);
+                        // Log the first few duplicates for debugging
+                        if (error.writeErrors && error.writeErrors.length > 0) {
+                            const sampleErrors = error.writeErrors.slice(0, 3);
+                            console.log(`[pipeline] Sample duplicate keys:`);
+                            sampleErrors.forEach((err) => {
+                                const doc = batch[err.index];
+                                if (doc) {
+                                    console.log(`  - tcgcsv_id: ${doc.external_id?.tcgcsv_id}, collector_number: ${doc.collector_number || 'N/A'}, rarity: ${doc.rarity || 'N/A'}, print: ${doc.print || 'N/A'}, finish: ${doc.finish || 'N/A'}`);
+                                }
+                            });
+                            if (error.writeErrors.length > 3) {
+                                console.log(`  ... and ${error.writeErrors.length - 3} more duplicates`);
+                            }
+                        }
+                        // Don't throw - we want to continue processing
+                        return;
+                    }
+                    throw error;
+                }
             }
             if (this.dbUpdateQueue.length > 0) {
                 const batch = this.dbUpdateQueue.splice(0, this.options.dbBatchSize);
-                console.log(`[pipeline] DB: Updating ${batch.length} products`);
                 const operations = batch.map(({ id, data }) => ({
                     updateOne: {
                         filter: { _id: new mongodb_1.ObjectId(id) },
                         update: { $set: data }
                     }
                 }));
-                await productsCollection.bulkWrite(operations, { ordered: false });
+                try {
+                    await productsCollection.bulkWrite(operations, { ordered: false });
+                }
+                catch (error) {
+                    if (error.code === 11000) {
+                        // Gracefully handle duplicate key errors in updates
+                        const successCount = error.result?.modifiedCount || 0;
+                        const matchedCount = error.result?.matchedCount || 0;
+                        console.log(`[pipeline] Update batch partially completed: ${matchedCount} matched, ${successCount} modified`);
+                        // Log the first few duplicates for debugging
+                        if (error.writeErrors && error.writeErrors.length > 0) {
+                            const sampleErrors = error.writeErrors.slice(0, 3);
+                            console.log(`[pipeline] Sample update conflicts:`);
+                            sampleErrors.forEach((err) => {
+                                const operation = batch[err.index];
+                                if (operation) {
+                                    console.log(`  - Document ID: ${operation.id}, attempted update caused duplicate key`);
+                                }
+                            });
+                            if (error.writeErrors.length > 3) {
+                                console.log(`  ... and ${error.writeErrors.length - 3} more conflicts`);
+                            }
+                        }
+                        // Don't throw - we want to continue processing
+                        return;
+                    }
+                    throw error;
+                }
             }
             if (this.migrationQueue.length > 0) {
                 const batch = this.migrationQueue.splice(0, 100);
-                console.log(`[pipeline] DB: Migrating ${batch.length} products between sets`);
                 for (const migration of batch) {
                     try {
                         await this.context.app.service('products').patch(migration.id, {
@@ -175,7 +266,6 @@ class ConcurrentPipeline {
         }
     }
     async drain() {
-        console.log(`[pipeline] Draining remaining items...`);
         while (this.fetchQueue.length > 0 ||
             this.activeFetchers > 0 ||
             this.processQueue.length > 0 ||
@@ -185,9 +275,8 @@ class ConcurrentPipeline {
             this.migrationQueue.length > 0 ||
             this.activeDbWriters > 0) {
             await this.commitDbBatch();
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        console.log(`[pipeline] Drain complete`);
     }
 }
 exports.ConcurrentPipeline = ConcurrentPipeline;
@@ -200,7 +289,7 @@ function createRateLimitedAxios(rateLimit) {
             const oldest = tokens[0];
             const wait = Math.max(0, refillMs - (now - oldest));
             if (wait > 0) {
-                await new Promise(resolve => setTimeout(resolve, wait));
+                await new Promise((resolve) => setTimeout(resolve, wait));
             }
             tokens.shift();
         }

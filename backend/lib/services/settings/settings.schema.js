@@ -20,13 +20,7 @@ exports.settingsValidator = (0, typebox_1.getValidator)(exports.settingsSchema, 
 exports.settingsResolver = (0, schema_1.resolve)({});
 exports.settingsExternalResolver = (0, schema_1.resolve)({});
 // Schema for creating new entries
-exports.settingsDataSchema = typebox_1.Type.Pick(exports.settingsSchema, [
-    'limit',
-    'skip',
-    'buylist_percentage',
-    'timeout',
-    'tcgcsv_last_updated',
-], {
+exports.settingsDataSchema = typebox_1.Type.Pick(exports.settingsSchema, ['limit', 'skip', 'buylist_percentage', 'timeout', 'tcgcsv_last_updated'], {
     $id: 'SettingsData'
 });
 exports.settingsDataValidator = (0, typebox_1.getValidator)(exports.settingsDataSchema, validators_1.dataValidator);
@@ -38,7 +32,7 @@ exports.settingsPatchSchema = typebox_1.Type.Partial(exports.settingsSchema, {
 exports.settingsPatchValidator = (0, typebox_1.getValidator)(exports.settingsPatchSchema, validators_1.dataValidator);
 exports.settingsPatchResolver = (0, schema_1.resolve)({});
 // Schema for allowed query properties
-exports.settingsQueryProperties = typebox_1.Type.Pick(exports.settingsSchema, ['_id',]);
+exports.settingsQueryProperties = typebox_1.Type.Pick(exports.settingsSchema, ['_id']);
 exports.settingsQuerySchema = typebox_1.Type.Intersect([
     (0, typebox_1.querySyntax)(exports.settingsQueryProperties),
     // Add additional query properties here

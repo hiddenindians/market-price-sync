@@ -1,11 +1,11 @@
-import type { Application } from '../../declarations'
-import { ProductsService } from './products.class'
-import { productsPath } from './products.shared'
-export * from './products.class'
-export * from './products.schema'
-export declare const products: (app: Application) => void
+import type { Application } from '../../declarations';
+import { ProductsService } from './products.class';
+import { productsPath } from './products.shared';
+export * from './products.class';
+export * from './products.schema';
+export declare const products: (app: Application) => void;
 declare module '../../declarations' {
-  interface ServiceTypes {
-    [productsPath]: ProductsService
-  }
+    interface ServiceTypes {
+        [productsPath]: ProductsService;
+    }
 }

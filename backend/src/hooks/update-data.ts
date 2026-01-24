@@ -79,8 +79,20 @@ const PROMO_KEYWORDS: string[] = [
   'SDCC'
 ]
 
-const PROMO_SUFFIX_KEYWORDS: string[] = ['Promo', 'Promos', 'Promo Pack', 'Promotional']
+const PROMO_SUFFIX_KEYWORDS: string[] = [
+  'Promo',
+  'Promos',
+  'Promo Pack',
+  'Promotional',
+  'Secret Lair',
+  'SDCC'
+]
 
+/**
+ * Tokenizes a string or null value into an array of lowercase alphanumeric words
+ * @param value - The string to tokenize
+ * @returns Array of tokenized words
+ */
 const tokenize = (value?: string | null): string[] =>
   (value ?? '')
     .toString()
@@ -88,6 +100,12 @@ const tokenize = (value?: string | null): string[] =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean)
 
+/**
+ * Checks if a sequence of keyword tokens appears consecutively in source tokens
+ * @param sourceTokens - Array of tokens from the source
+ * @param keywordTokens - Array of tokens to match
+ * @returns True if the keyword sequence is found
+ */
 const containsKeywordSequence = (sourceTokens: string[], keywordTokens: string[]): boolean => {
   if (!sourceTokens.length || !keywordTokens.length) {
     return false
@@ -113,6 +131,12 @@ const containsKeywordSequence = (sourceTokens: string[], keywordTokens: string[]
   return false
 }
 
+/**
+ * Checks if any keyword matches any source by tokenizing and checking sequences
+ * @param sources - Array of source strings
+ * @param keywords - Array of keywords to match
+ * @returns True if any keyword matches
+ */
 const keywordMatch = (sources: string[], keywords: string[]): boolean => {
   if (!Array.isArray(sources) || !Array.isArray(keywords) || keywords.length === 0) {
     return false
@@ -151,20 +175,29 @@ interface SetData {
 
 const rateLimitedAxios = createRateLimitedAxios(RATE_LIMIT)
 
-setInterval(() => {
-  console.info(`[rate] limit: ${RATE_LIMIT}/s`)
-}, 5000)
+// setInterval(() => {
+//   console.info(`[rate] limit: ${RATE_LIMIT}/s`)
+// }, 5000)
 
+// --- end rate limiter ---
+
+/**
+ * Makes a rate-limited GET request
+ * @param url - The URL to request
+ * @param opts - Optional request options
+ * @returns Promise resolving to the response data
+ */
 const rateLimitedGet = async <T = any>(url: string, opts?: any): Promise<T> => {
   return rateLimitedAxios.get<T>(url, opts)
 }
 
-// --- end rate limiter ---
-
-// Main combined hook function
+/**
+ * Main combined hook function that fetches games, sets, and processes products and prices
+ * @param context - The hook context
+ */
 export const combinedHook = async (context: HookContext) => {
   console.time('Total Execution Time')
-  console.log(`Running combined hook on ${context.path}.${context.method}`)
+  // console.log(`Running combined hook on ${context.path}.${context.method}`)
 
   console.time('fetchGames')
   await fetchGames(context)
@@ -183,25 +216,10 @@ export const combinedHook = async (context: HookContext) => {
   console.timeEnd('Total Execution Time')
 }
 
-// const fetchGames = async (context: HookContext) => {
-//   console.log('fetching games')
-//   const response = await axios.get(`https://tcgcsv.com/tcgplayer/categories`)
-//   const games = response.data.results
-
-//   for (const game of games) {
-//     const existingGame = await context.app.service('games').find({
-//       query: { 'external_id.tcgcsv_id': Number(game.categoryId) }
-//     })
-
-//     if (existingGame.total == 0 && ![21, 69, 70, 82].includes(Number(game.categoryId))) {
-//       context.app.service('games').create({
-//         name: game.displayName,
-//         external_id: { tcgcsv_id: game.categoryId },
-//         logo: `/assets/images/logos/${game.name}.png`
-//       })
-//     }
-//   }
-// }
+/**
+ * Fetches games from the TCGCSV API and creates new games in the database
+ * @param context - The hook context
+ */
 const fetchGames = async (context: HookContext) => {
   console.log('fetching games')
   const response = await rateLimitedGet<{ results: any[] }>(`https://tcgcsv.com/tcgplayer/categories`)
@@ -226,61 +244,10 @@ const fetchGames = async (context: HookContext) => {
   }
 }
 
-// const fetchSets = async (context: HookContext) => {
-//   console.log('fetching sets')
-//   let startTime = Date.now()
-
-//   try {
-//     const gamesData = await context.app.service('games').find({ query: { $limit: 100000 } })
-//     const games = gamesData.data
-
-//     const groupPromises = games.map(async (game) => {
-//       const externalId = game.external_id.tcgcsv_id
-//       try {
-//         const response = await axios.get(`https://tcgcsv.com/tcgplayer/${externalId}/groups`)
-//         return { game, groups: response.data.results }
-//       } catch (error) {
-//         console.log(`Error fetching groups for externalId ${externalId}:`, error)
-//         return { game, groups: [] }
-//       }
-//     })
-//     console.time('API Calls - fetchSets')
-//     const groupsData = await Promise.all(groupPromises)
-//     console.timeEnd('API Calls - fetchSets')
-
-//     console.time('Database Inserts - fetchSets')
-//     const setPromises = groupsData.flatMap(({ game, groups }) =>
-//       groups.map(async (group: any) => {
-//         const existingSet = await context.app.service('sets').find({
-//           query: { game_id: game._id, ['external_id.tcgcsv_id']: Number(group.groupId) }
-//         })
-
-//         if (existingSet.total === 0) {
-//           await context.app.service('sets').create({
-//             game_id: game._id,
-//             name: group.name,
-//             code: typeof group.abbreviation == 'string' ? (group.abbreviation as string) : '',
-//             external_id: { tcgcsv_id: Number(group.groupId) }
-//           })
-//         } else if (existingSet.total === 1) {
-//           if (typeof group.abbreviation == 'string') {
-//             await context.app.service('sets').patch(existingSet.data[0]._id as string, {
-//               code: group.abbreviation as string
-//             })
-//           }
-//         }
-//       })
-//     )
-
-//     await Promise.all(setPromises)
-//     console.timeEnd('Database Inserts - fetchSets')
-//   } catch (error) {
-//     console.error('Error fetching games:', error)
-//   }
-
-//   console.log(`fetchSets completed in ${(Date.now() - startTime) / 1000} seconds`)
-// }
-
+/**
+ * Fetches sets for each game using a concurrent pipeline and updates or creates sets in the database
+ * @param context - The hook context
+ */
 const fetchSets = async (context: HookContext) => {
   console.log('fetching sets')
 
@@ -427,6 +394,11 @@ const fetchSets = async (context: HookContext) => {
   )
 }
 
+/**
+ * Parses a string to a number if possible, otherwise returns the string
+ * @param input - The string to parse
+ * @returns The parsed number or the original string
+ */
 const parseNumberOrString = (input: string): number | string => {
   const parsedNumber = parseFloat(input)
   // Check if parsedNumber is a valid number
@@ -437,6 +409,11 @@ const parseNumberOrString = (input: string): number | string => {
   // If parsing succeeded, return the number
   return parsedNumber
 }
+/**
+ * Extracts product data from a found product and returns a new product object
+ * @param foundProduct - The product data from the API
+ * @returns A new product object with extracted data
+ */
 const extractProductData = (foundProduct: FoundProduct): NewProduct => {
   const dataArray: any[] = []
   const newProduct: Partial<NewProduct> = {}
@@ -477,358 +454,10 @@ const extractProductData = (foundProduct: FoundProduct): NewProduct => {
   return newProduct as NewProduct
 }
 
-// export const processProductsAndPrices = async (context: HookContext) => {
-//   console.log(`Running hook process-products-and-prices on ${context.path}.${context.method}`)
-//   console.time('processProductsAndPrices Total Time')
-
-//   const fetchProducts = async () => {
-//     console.time('fetchProducts Total Time')
-//     console.log('Starting product fetch')
-
-//     try {
-//       console.time('Database Query - Enabled Sets')
-//       const enabledSetsData = await context.app.service('sets').find({ query: { $limit: 100000 } })
-//       console.timeEnd('Database Query - Enabled Sets')
-
-//       if (enabledSetsData.total === 0) {
-//         console.log('no sets')
-//         return
-//       }
-
-//       const enabledSets = enabledSetsData.data
-//       const batchSize = 200 // Define the batch size
-//       const limit = pLimit(5)
-//       for (let i = 0; i < enabledSets.length; i += batchSize) {
-//         console.log(
-//           'processing batch ' +
-//             (i + batchSize) / batchSize +
-//             ' of ' +
-//             Math.ceil(enabledSets.length / batchSize)
-//         )
-//         const batch = enabledSets.slice(i, i + batchSize)
-//         console.time('API Calls - Fetch Products & Prices')
-
-//         const productPromises = batch.map((set) =>
-//           limit(async () => {
-//             const gameId = await getExternalIdForGame(set.game_id.toString())
-
-//             try {
-//               const [productResponse, priceResponse] = await Promise.all([
-//                 axios.get(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/products`),
-//                 axios.get(`https://tcgcsv.com/tcgplayer/${gameId}/${set.external_id.tcgcsv_id}/prices`)
-//               ])
-
-//               const products = productResponse.data.results.map((v: any) => ({
-//                 ...v,
-//                 game_id: set.game_id,
-//                 set_id: set._id,
-//                 // set_name: set.name,
-//                 anniversary: set.name.includes('Anniversary Tournament') ? true : false,
-//                 pre_release:
-//                   set.name.includes('Pre-Release') || set.name.includes('Prerelease') ? true : false,
-//                 promo: set.name.match(/\bPromo\b/) || set.name.match(/\bPromos\b/) ? true : false
-//               }))
-
-//               const prices = priceResponse.data.results
-//               return { products, prices }
-//             } catch (axiosError) {
-//               console.error(`Error fetching data for set ${set._id}:`, axiosError)
-//               return { products: [], prices: [] }
-//             }
-//           })
-//         )
-
-//         const results = await Promise.all(productPromises)
-//         console.timeEnd('API Calls - Fetch Products & Prices')
-//         console.time('Processing Extracted Data')
-
-//         const products = results.flatMap((result) => result.products)
-//         const prices = results.flatMap((result) => result.prices)
-
-//         if (products.length === 0 || prices.length === 0) continue
-
-//         let numUpdated = 0
-//         let numInserted = 0
-//         console.time('Database Operations')
-
-//         const productMap = new Map(products.map((product) => [product.productId, product]))
-
-//         const bulkInsertProducts = []
-//         const bulkInsertPrices = []
-//         // const newProducts = []
-//         // const newPrices = []
-
-//         for (const price of prices) {
-//           const foundProduct = productMap.get(price.productId)
-//           if (!foundProduct) continue
-//           const newProduct = extractProductData(foundProduct)
-
-//           //  if (foundProduct.pre_release || foundProduct.anniversary){
-//           //     console.log(foundProduct)
-
-//           //   }
-
-//           newProduct.name += foundProduct.pre_release ? ' Pre-Release Event' : ''
-//           newProduct.name += foundProduct.anniversary ? ' Anniversary Event' : ''
-//           newProduct.name += foundProduct.promo && newProduct.rarity !== 'Promo' ? ' Promo' : ''
-
-//           let rarity = newProduct.rarity != undefined ? `, ${newProduct.rarity}` : ''
-
-// if (
-//   (newProduct.type === 'Single Cards' && !newProduct.name.includes('Code Card')) ||
-//   newProduct.type === 'Presale' ||
-//   newProduct.name.includes('Token')
-// ) {
-//   if (
-//     newProduct.name.includes(removeLeadingZeros(newProduct.collector_number)) ||
-//     newProduct.collector_number == undefined
-//   ) {
-//     newProduct.name += ` (${price.subTypeName}${rarity})`
-//     // nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
-//   } else if (newProduct.collector_number != undefined) {
-//     newProduct.name += ` - ${newProduct.collector_number} (${price.subTypeName}${rarity})`
-//     //  nameQuery = `(${price.subTypeName}, ${newProduct.rarity})`;
-//   } else {
-//     // console.log(newProduct)
-//   }
-// }
-
-//           const existingNameData = await context.app.service('products').find({
-//             query: {
-//               name: newProduct.name
-//             }
-//           })
-
-//           if (existingNameData.total == 1) {
-//             if (existingNameData.data[0].set_id.toString() != newProduct.set_id.toString()) {
-//               const set = await context.app.service('sets').find({
-//                 query: {
-//                   _id: newProduct.set_id
-//                 }
-//               })
-//               //  console.log(set)
-
-//               let code =
-//                 set.data[0].code == '' || set.data[0].code == undefined ? set.data[0].name : set.data[0].code
-//               code = code === 'POP' ? set.data[0].name : code
-//               newProduct.name += ` (${code})`
-//             }
-//           } else if (existingNameData.total > 1) {
-//             //
-//             // console.log(existingNameData.data)
-//           }
-
-//           const existingProductData = await context.app.service('products').find({
-//             query: {
-//               'external_id.tcgcsv_id': Number(newProduct.external_id.tcgcsv_id),
-//               name: newProduct.name
-//             }
-//           })
-
-//           // const settingsData = await context.app.service('settings').find()
-//           // const settings = settingsData.data[0] || { tcgcsv_last_updated: 0 }
-
-//           const newPrice: Price = {
-//             market_price: price.marketPrice ? Number(price.marketPrice) : -1,
-//             low_price: price.lowPrice ? Number(price.lowPrice) : -1,
-//             mid_price: price.midPrice ? Number(price.midPrice) : -1,
-//             high_price: price.highPrice ? Number(price.highPrice) : -1,
-//             direct_low_price: price.directLowPrice ? Number(price.directLowPrice) : -1,
-//             timestamp: Date.now()
-//           }
-
-//           if (existingProductData.total === 1) {
-//             numUpdated++
-
-//             const existingProduct = existingProductData.data[0] as Products
-//             // console.log(existingProductData.data[0].name)
-
-//             //   if (existingProduct.last_updated < settings.tcgcsv_last_updated) {
-//             //  console.log('updating price')
-//             await context.app
-//               .service('prices')
-//               .create({ ...newPrice, product_id: existingProductData.data[0]._id })
-//             var _id = existingProduct._id as string
-//             await context.app.service('products').patch(_id, {
-//               name: newProduct.name,
-//               last_updated: newProduct.last_updated,
-//               market_price: newPrice.market_price,
-//               low_price: newPrice.low_price,
-//               high_price: newPrice.high_price,
-//               mid_price: newPrice.mid_price,
-//               direct_low_price: newPrice.direct_low_price,
-//               type: newProduct.type
-//             })
-
-//             //  }
-//           } else if (existingProductData.total > 1) {
-//             // console.log('found too many')
-//             //  console.log(existingProductData.data)
-//           } else if (existingProductData.total === 0) {
-//             numInserted++
-
-//             //    console.log('no match')
-
-//             newProduct.market_price = newPrice.market_price
-//             newProduct.low_price = newPrice.low_price
-//             newProduct.high_price = newPrice.high_price
-//             newProduct.mid_price = newPrice.mid_price
-//             newProduct.direct_low_price = newPrice.direct_low_price
-
-//             await context.app
-//               .service('products')
-//               .create(newProduct)
-//               .then(async (data) => {
-//                 await context.app.service('prices').create({ ...newPrice, product_id: data._id })
-//               })
-//           }
-//         }
-
-//         console.log(
-//           'done processing batch ' + (i + batchSize) / batchSize + ' of ' + enabledSets.length / batchSize
-//         )
-//         console.timeEnd('Database Operations')
-//         console.timeEnd('Processing Extracted Data')
-//       }
-//     } catch (error) {
-//       console.error('Error fetching products:', error)
-//     }
-
-//     // console.log(`Done. Took ${(Date.now() - startTime) / 1000} seconds`)
-//     console.timeEnd('fetchProducts Total Time')
-//   }
-
-//   const getExternalIdForGame = async (gameId: string) => {
-//     let toReturn = null
-//     await context.app
-//       .service('games')
-//       .find({
-//         query: {
-//           _id: gameId
-//         }
-//       })
-//       .then((data) => {
-//         if (data.data[0].external_id) {
-//           toReturn = data.data[0].external_id.tcgcsv_id
-//         }
-//       })
-
-//     return toReturn
-//   }
-
-//   fetchProducts()
-//   console.timeEnd('processProductsAndPrices Total Time')
-// }
-
-// const determineProductType = (foundProduct: any, rarity: string) => {
-//   const { extendedData, name, url } = foundProduct
-//   const categoryId = foundProduct.categoryId || 0
-
-//   const isPresale = foundProduct.presaleInfo.isPresale == true ? true : false;
-
-//   if (isPresale) {
-//     return 'Presale'
-//   }
-
-//   if (rarity !== '') {
-//     return 'Single Cards'
-//   }
-
-//   const extendedName = extendedData.length > 0 ? extendedData[0].name : '' //kinda hacky.
-
-//   if (extendedName.includes('Number')){
-//     return 'Single Cards'
-//   }
-
-//   if (extendedName.includes('Token')) return 'Single Cards' //might not do anything
-
-//   // Direct keyword checks for single card
-//   if (
-//     name.includes('Energy') ||
-//     name.includes('Token') ||
-//     name.includes('Code Card') ||
-//     name.includes('Land') ||
-//     name.includes('Art Card') ||
-//     name.includes('Checklist Card') ||
-//     name.includes('Decklist Card') ||
-//     url.includes('art-series')
-//   ) {
-//     return 'Single Cards'
-//   }
-
-//   // Direct keyword checks for boosters
-//   if (
-//     name.includes('Booster') ||
-//     name.includes('Double Pack') ||
-//     name.includes('VIP Edition Pack') ||
-//     name.includes('Box Topper') ||
-//     name.includes('Blister') ||
-//     name.includes('Anniversary Edition Pack') ||
-//     name.includes('Anniversary Edition Display') ||
-//     name.includes('Jumpstart') ||
-//     name.includes('VIP Edition') ||
-//     name.includes('Mythic Edition')
-//   ) {
-//     return 'Boosters'
-//   }
-
-//   if (name.includes('Commander')) {
-//     const yearMatch = name.match(/Commander (\d{4})/)
-//     if (yearMatch) return 'Decks'
-//   }
-//   // Direct keyword checks for decks
-//   if (
-//     name.includes('Deck') ||
-//     name.includes('Intro Pack') ||
-//     name.includes('Commander Collection') ||
-//     name.includes('Guild Kit') ||
-//     name.includes('Global Series') ||
-//     (name.includes('Tournament Pack') && categoryId === 1) ||
-//     (name.includes('Commander') && name.includes('Set of'))
-//   ) {
-//     return 'Decks'
-//   }
-
-//   if (name.includes('SDCC')) {
-//     const yearMatch = name.match(/SDCC (\d{4})/)
-//     if (yearMatch) return 'Promotion Cards'
-//   }
-
-//   if ((name.includes('Tournament Pack') && categoryId !== 1) || name.includes('Promo Pack') || name.includes('Promotional'))
-//     return 'Promotion Cards'
-
-//   // Direct keyword checks for other categories
-//   if (name.includes('Box Set') || name.includes('Game Night') || name.includes('Scene Box'))
-//     return 'Box Sets'
-
-//   if (name.includes('Retail Tin')) return 'Tins'
-//   if (name.includes('Elite Trainer Box')) return 'Elite Trainer Boxes'
-//   if (name.includes('Build & Battle Box')) return 'Build & Battle Boxes'
-//   if (
-//     name.includes('Fat Pack') ||
-//     name.includes('- Bundle') ||
-//     name.includes('- Gift Bundle') ||
-//     (name.includes('Gift Box') && categoryId === 1) ||
-//     name.includes('Gift Pack') ||
-//     name.includes('Gift Edition')
-//   )
-//     return 'Bundles'
-
-//   if (name.includes('Spindown ')) {
-//     return 'Spindown Dice'
-//   }
-//   if (name.includes('Starter Set') || name.includes('Starter Kit') || name.includes('Clash Pack'))
-//     return 'Starter Kits'
-//   if (name.includes('Prerelease')) return 'Prerelease Packs'
-//   if (name.includes('Secret Lair')) return 'Secret Lair Drop'
-
-//   // Check for rarity-based single card
-//  // if (rarity) return 'Single Cards - Leak'
-
-//   // Default case
-//   return 'Sealed'
-// }
-
+/**
+ * Processes products and prices for all sets using a concurrent pipeline, handling creation, updates, and migrations
+ * @param context - The hook context
+ */
 const processProductsAndPrices = async (context: HookContext) => {
   console.log(`Running processProductsAndPrices on ${context.path}.${context.method}`)
   console.time('processProductsAndPrices Total Time')
@@ -844,18 +473,23 @@ const processProductsAndPrices = async (context: HookContext) => {
   const gameIdMap = new Map(games.map((game: any) => [game._id.toString(), game.external_id.tcgcsv_id]))
   const setMap = new Map(sets.map((set: any) => [set._id.toString(), set]))
 
-  const existingProductsMap = new Map<string, Map<string, string>>()
+  const existingProductsMap = new Map<string, string>()
   existingProducts.forEach((p: any) => {
-    const name = p.name
-    const extId = p.external_id?.tcgcsv_id?.toString()
-    if (!name || !extId) return
-    if (!existingProductsMap.has(name)) {
-      existingProductsMap.set(name, new Map())
+    const key = buildProductKey(
+      p.external_id?.tcgcsv_id?.toString() || '',
+      p.type || 'Sealed',
+      p.collector_number || '',
+      p.rarity || '',
+      p.print || '',
+      p.finish || '',
+      p.external_id?.tcgcsv_group_id?.toString() || ''
+    )
+    if (key) {
+      existingProductsMap.set(key, p._id)
     }
-    existingProductsMap.get(name)!.set(extId, p._id)
   })
 
-  const newProductsMap = new Map<string, Map<string, boolean>>()
+  const newProductsMap = new Map<string, boolean>()
 
   const errors: Array<{ setId: string; error: unknown }> = []
 
@@ -897,7 +531,24 @@ const processProductsAndPrices = async (context: HookContext) => {
         ])
 
         const productData = productResponse.results || []
-        const priceData = priceResponse.results || []
+        let priceData = priceResponse.results || []
+
+        // Deduplicate prices by productId and subTypeName
+        const priceMap = new Map<string, any>()
+        const priceCountBefore = priceData.length
+        priceData.forEach((p: any) => {
+          const key = `${p.productId}_${p.subTypeName || 'Normal'}`
+          if (!priceMap.has(key)) {
+            priceMap.set(key, p)
+          }
+        })
+        priceData = Array.from(priceMap.values())
+        const duplicatesRemoved = priceCountBefore - priceData.length
+        if (duplicatesRemoved > 0) {
+          console.log(
+            `[processProductsAndPrices] Set ${set._id}: Deduplicated ${duplicatesRemoved} price entries from API response`
+          )
+        }
 
         const products = productData.map((p: any) => {
           const sources = [set.name ?? '', set.code ?? '', p.name ?? '']
@@ -933,6 +584,7 @@ const processProductsAndPrices = async (context: HookContext) => {
   }
 
   pipeline.onProcess(async ({ set, products, prices }: SetData) => {
+    const batchDuplicates = new Map<string, number>()
     const localNewProducts: NewProduct[] = []
     const localUpdatedProducts: Array<{ id: string; data: any }> = []
     const localMigrations: Array<{
@@ -978,6 +630,16 @@ const processProductsAndPrices = async (context: HookContext) => {
         newProduct.finish = finishKey
 
         const extIdStr = newProduct.external_id.tcgcsv_id.toString()
+
+        const productKey = buildProductKey(
+          extIdStr,
+          newProduct.type,
+          newProduct.collector_number || '',
+          newProduct.rarity || '',
+          printKey,
+          finishKey,
+          newProduct.external_id.tcgcsv_group_id.toString()
+        )
 
         const eventSuffixes = [
           {
@@ -1039,7 +701,7 @@ const processProductsAndPrices = async (context: HookContext) => {
           }
         }
 
-        // We have to do this before we check for duplicates
+        // Apply set-specific name disambiguation before duplicate check
         const setData = setMap.get(newProduct.set_id.toString())
         if (setData && setData.name === 'The List Reprints' && !newProduct.name.includes('(LIST)')) {
           newProduct.name += ' (LIST)'
@@ -1053,89 +715,35 @@ const processProductsAndPrices = async (context: HookContext) => {
           newProduct.name += ' (Revision Pack)'
         }
 
-        const nameExists = existingProductsMap.has(newProduct.name) || newProductsMap.has(newProduct.name)
-        if (!nameExists) {
+        const keyExists = existingProductsMap.has(productKey) || newProductsMap.has(productKey)
+        if (!keyExists) {
           if (newProduct.name.includes('DON!! Card') && setData) {
             let code = setData.code && setData.code !== '' ? setData.code : setData.name
             if (code) {
               newProduct.name += ` (${code})`
             }
           }
-
           localNewProducts.push(newProduct)
-          newProductsMap.set(newProduct.name, new Map([[extIdStr, true]]))
+          newProductsMap.set(productKey, true)
+          batchDuplicates.set(productKey, (batchDuplicates.get(productKey) || 0) + 1)
         } else {
-          const extMapExisting = existingProductsMap.get(newProduct.name)
-          const extMapNew = newProductsMap.get(newProduct.name)
-          const compositeExists =
-            (extMapExisting && extMapExisting.has(extIdStr)) || (extMapNew && extMapNew.has(extIdStr))
+          const existingId = existingProductsMap.get(productKey)
 
-          if (compositeExists) {
-            let existingId = extMapExisting!.get(extIdStr)
-
-            localUpdatedProducts.push({
-              id: existingId!.toString(),
-              data: {
-                name: newProduct.name,
-                type: newProduct.type,
-                print: printKey,
-                finish: finishKey,
-                event_types: newProduct.event_types,
-                market_price: newProduct.market_price,
-                low_price: newProduct.low_price,
-                mid_price: newProduct.mid_price,
-                high_price: newProduct.high_price,
-                direct_low_price: newProduct.direct_low_price
-              }
-            })
-          } else {
-            if (setData) {
-              let code = setData.code && setData.code !== '' ? setData.code : setData.name
-              if (setData.name === 'The List Reprints') {
-                code = ''
-              }
-              if (code === 'POP') {
-                code = setData.name
-              }
-              newProduct.name += ` (${code})`
+          localUpdatedProducts.push({
+            id: existingId!.toString(),
+            data: {
+              name: newProduct.name,
+              type: newProduct.type,
+              print: printKey,
+              finish: finishKey,
+              event_types: newProduct.event_types,
+              market_price: newProduct.market_price,
+              low_price: newProduct.low_price,
+              mid_price: newProduct.mid_price,
+              high_price: newProduct.high_price,
+              direct_low_price: newProduct.direct_low_price
             }
-
-            const newCompositeExists =
-              (existingProductsMap.has(newProduct.name) &&
-                existingProductsMap.get(newProduct.name)!.has(extIdStr)) ||
-              (newProductsMap.has(newProduct.name) && newProductsMap.get(newProduct.name)!.has(extIdStr))
-
-            if (newCompositeExists) {
-              let existingId = existingProductsMap.get(newProduct.name)?.get(extIdStr)
-
-              localUpdatedProducts.push({
-                id: existingId!.toString(),
-                data: {
-                  name: newProduct.name,
-                  type: newProduct.type,
-                  print: printKey,
-                  finish: finishKey,
-                  event_types: newProduct.event_types,
-                  market_price: price.marketPrice ? Number(price.marketPrice) : -1,
-                  low_price: price.lowPrice ? Number(price.lowPrice) : -1,
-                  mid_price: price.midPrice ? Number(price.midPrice) : -1,
-                  high_price: price.highPrice ? Number(price.highPrice) : -1,
-                  direct_low_price: price.directLowPrice ? Number(price.directLowPrice) : -1
-                }
-              })
-
-              if (!newProductsMap.has(newProduct.name)) {
-                newProductsMap.set(newProduct.name, new Map())
-              }
-              newProductsMap.get(newProduct.name)!.set(extIdStr, true)
-            } else {
-              localNewProducts.push(newProduct)
-              if (!newProductsMap.has(newProduct.name)) {
-                newProductsMap.set(newProduct.name, new Map())
-              }
-              newProductsMap.get(newProduct.name)!.set(extIdStr, true)
-            }
-          }
+          })
         }
       }
 
@@ -1143,9 +751,22 @@ const processProductsAndPrices = async (context: HookContext) => {
       if (processedCount % 100 === 0) {
         const elapsed = Date.now() - startTime
         const rate = processedCount / (elapsed / 1000)
-        console.log(
-          `[processProductsAndPrices] Processed ${processedCount}/${totalSets} sets (${rate.toFixed(2)}/s)`
-        )
+        // console.log(
+        //   `[processProductsAndPrices] Processed ${processedCount}/${totalSets} sets (${rate.toFixed(2)}/s)`
+        // )
+      }
+
+      // Log batch duplicates if any were detected
+      let duplicateCount = 0
+      for (const [key, count] of batchDuplicates) {
+        if (count > 1) {
+          duplicateCount++
+          console.log(`[processProductsAndPrices] Duplicate detected in batch - key: ${key}, count: ${count}`)
+        }
+      }
+
+      if (duplicateCount === 0 && localNewProducts.length > 0) {
+        // Batch processed cleanly
       }
 
       return {
@@ -1215,6 +836,70 @@ const processProductsAndPrices = async (context: HookContext) => {
   }
   console.timeEnd('Product Migrations')
 
+  console.time('Final Name Disambiguation Sweep')
+
+  const duplicateGroups = await context.app.service('products').find({
+    pipeline: [
+      {
+        $group: {
+          _id: { name: '$name' },
+          products: {
+            $push: {
+              _id: '$_id',
+              name: '$name',
+              tcgcsv_id: '$external_id.tcgcsv_id',
+              set_id: '$set_id',
+              type: '$type'
+            }
+          },
+          uniqueTcgcsvIds: { $addToSet: '$external_id.tcgcsv_id' },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $match: { 'uniqueTcgcsvIds.1': { exists: true } }
+      }
+    ],
+    paginate: false
+  })
+  console.log('duplicate groups: ', duplicateGroups.length)
+
+  const typedDuplicateGroups = duplicateGroups as unknown as DuplicateGroup[]
+
+  for (const group of typedDuplicateGroups) {
+    for (const product of group.products) {
+      const setData = setMap.get(product.set_id.toString())
+      if (!setData) continue
+
+      let code = setData.code && setData.code !== '' ? setData.code : setData.name
+      if (setData.name === 'The List Reprints') {
+        code = ''
+      }
+
+      if (code === 'POP') {
+        code = setData.name
+      }
+
+      const suffix = ` (${code})`
+      if (!product.name.includes(suffix)) {
+        const newName = product.name + suffix
+
+        try {
+          console.log(`Disambiguated: ${product.name} -> ${newName}`)
+          await context.app.service('products').patch(product._id, {
+            name: newName
+          })
+        } catch (error) {
+          console.error(`Error updating product ${product._id}:`, error)
+        }
+      }
+    }
+  }
+
+  console.log(duplicateGroups)
+
+  console.timeEnd('Final Name Disambiguation Sweep')
+
   const totalDuration = Date.now() - startTime
   console.log(
     `[processProductsAndPrices] Completed. Total sets: ${processedCount}, Errors: ${errors.length}, Total duration: ${totalDuration}ms`
@@ -1233,6 +918,11 @@ const processProductsAndPrices = async (context: HookContext) => {
   console.timeEnd('processProductsAndPrices Total Time')
 }
 
+/**
+ * Removes leading zeros from a string, handling fractional numbers with '/'
+ * @param str - The string to process
+ * @returns The string with leading zeros removed
+ */
 const removeLeadingZeros = (str: string) => {
   if (str == undefined) {
     return 'undefined'
@@ -1248,6 +938,12 @@ const removeLeadingZeros = (str: string) => {
   }
 }
 
+/**
+ * Determines the product type based on product data and rarity
+ * @param foundProduct - The product data
+ * @param rarity - The product rarity
+ * @returns The determined product type
+ */
 const determineProductType = (foundProduct: any, rarity: string): string => {
   const { extendedData, name, url, categoryId } = foundProduct
   if (foundProduct.presaleInfo?.isPresale) return 'Presale'
@@ -1259,7 +955,31 @@ const determineProductType = (foundProduct: any, rarity: string): string => {
 
   if (extendedData?.some((d: any) => d.name.includes('Number'))) return 'Single Cards'
 
-  return 'Sealed' // Default fallback
+  return 'Sealed'
+}
+
+/**
+ * Builds a unique key for a product based on its attributes
+ * @param tcgcsvId - The TCGCSV ID
+ * @param type - Product type
+ * @param collectorNumber - Collector number
+ * @param rarity - Rarity
+ * @param print - Print type
+ * @param finish - Finish type
+ * @param setId - Set ID
+ * @returns A unique product key string
+ */
+const buildProductKey = (
+  tcgcsvId: string,
+  type: string,
+  collectorNumber: string,
+  rarity: string,
+  print: string,
+  finish: string,
+  setId: string
+): string => {
+  // Unified key derivation for all types to avoid mismatches
+  return `${tcgcsvId}_${collectorNumber || 'NA'}_${rarity || 'NA'}_${print || 'NA'}_${finish || 'NA'}`
 }
 
 interface ExtendedData {
@@ -1425,6 +1145,19 @@ interface PriceResponse {
 
 interface Settings {
   tcgcsv_last_updated: Number
+}
+
+interface DuplicateGroup {
+  _id: { name: string }
+  products: Array<{
+    _id: string
+    name: string
+    tcgcsv_id: number
+    set_id: string
+    type: string
+  }>
+  uniqueTcgcsvIds: number[]
+  count: number
 }
 
 //if (

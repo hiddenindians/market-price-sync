@@ -1,3 +1,3 @@
-import type { Application } from './declarations'
-declare const app: Application
-export { app }
+import type { Application } from './declarations';
+declare const app: Application;
+export { app };

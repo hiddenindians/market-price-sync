@@ -315,7 +315,8 @@ export const productsQueryProperties = Type.Pick(productsSchema, [
   'print',
   'finish',
   'event_types',
-  'market_price'
+  'market_price',
+  'type'
 ])
 
 export const productsQuerySchema = Type.Intersect(
@@ -380,6 +381,7 @@ export const productsQuerySchema = Type.Intersect(
       'external_id.tcgcsv_group_id': queryProperty(Type.Number()),
       game_id: queryProperty(ObjectIdSchema()),
       set_id: queryProperty(ObjectIdSchema()),
+      type: queryProperty(Type.String()),
       $sort: Type.Optional(
         Type.Object({
           'external_id.tcgcsv_group_id': Type.Optional(Type.Number()),
@@ -390,7 +392,8 @@ export const productsQuerySchema = Type.Intersect(
       ),
       $limit: Type.Optional(Type.Number()),
       $skip: Type.Optional(Type.Number()),
-      $or: Type.Optional(Type.Array(Type.Object({})))
+      $or: Type.Optional(Type.Array(Type.Object({}))),
+      $group: Type.Optional(Type.Object({})),
     })
   ],
   {

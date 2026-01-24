@@ -11,9 +11,9 @@ exports.gamesSchema = typebox_1.Type.Object({
     name: typebox_1.Type.String(),
     logo: typebox_1.Type.Optional(typebox_1.Type.String()),
     external_id: typebox_1.Type.Object({
-        tcgcsv_id: typebox_1.Type.Optional(typebox_1.Type.Number()),
+        tcgcsv_id: typebox_1.Type.Optional(typebox_1.Type.Number())
     }),
-    enabled: typebox_1.Type.Boolean({ default: false }),
+    enabled: typebox_1.Type.Boolean({ default: false })
 }, { $id: 'Games', additionalProperties: false });
 exports.gamesValidator = (0, typebox_1.getValidator)(exports.gamesSchema, validators_1.dataValidator);
 exports.gamesResolver = (0, schema_1.resolve)({});
@@ -36,9 +36,9 @@ exports.gamesQuerySchema = typebox_1.Type.Object({
     'external_id.tcgcsv_id': (0, typebox_1.queryProperty)(typebox_1.Type.Number()),
     enabled: (0, typebox_1.queryProperty)(typebox_1.Type.Boolean()),
     $sort: typebox_1.Type.Optional(typebox_1.Type.Object({
-        '_id': typebox_1.Type.Optional(typebox_1.Type.Number()),
+        _id: typebox_1.Type.Optional(typebox_1.Type.Number()),
         'external_id.tcgcsv_id': typebox_1.Type.Optional(typebox_1.Type.Number()),
-        'name': typebox_1.Type.Optional(typebox_1.Type.Number()),
+        name: typebox_1.Type.Optional(typebox_1.Type.Number())
     })),
     $limit: typebox_1.Type.Optional(typebox_1.Type.Number()),
     $skip: typebox_1.Type.Optional(typebox_1.Type.Number())

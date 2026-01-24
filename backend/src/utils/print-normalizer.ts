@@ -288,6 +288,27 @@ type VariantDetectionInput = {
   extended_data?: ExtendedDataEntry[]
 }
 
+/**
+ * Extracts variant sources from product data for print variant detection.
+ * 
+ * This function collects possible sources of print variant information from:
+ * - Product name (e.g., "Card Name (Showcase)")
+ * - Short name (if different from name)
+ * - Extended data "Rarity" field ONLY (to avoid false positives from gameplay text)
+ * 
+ * @param input - Product data containing name, short_name, and extended_data
+ * @returns Array of variant sources with their origin (name, short_name, or extended)
+ * 
+ * @example
+ * // Returns sources from name and rarity only, ignoring attack text
+ * extractVariantSources({
+ *   name: "Beautifly",
+ *   extended_data: [
+ *     { name: "Rarity", value: "Holo Rare" },
+ *     { name: "Attack 2", value: "Parallel Gain" } // This is ignored
+ *   ]
+ * })
+ */
 const extractVariantSources = (input?: VariantDetectionInput | null): VariantSource[] => {
   if (!input) {
     return []
@@ -304,16 +325,22 @@ const extractVariantSources = (input?: VariantDetectionInput | null): VariantSou
     sources.push({ value: short_name, origin: 'short_name' })
   }
 
+  // Only check the 'Rarity' field in extended data to avoid false positives
+  // from gameplay text (e.g., "Parallel Gain" attack, "Showcase" in flavor text)
   const extended = Array.isArray(extended_data) ? extended_data : []
   for (const entry of extended) {
     if (!isExtendedDataEntry(entry)) continue
-    const values = [entry.name, entry.display_name, entry.value]
-      .filter(Boolean)
-      .map((value) => value?.toString() ?? '')
+    
+    // Whitelist: Only process the "Rarity" field
+    if (entry.name && entry.name.toLowerCase() === 'rarity') {
+      const values = [entry.name, entry.display_name, entry.value]
+        .filter(Boolean)
+        .map((value) => value?.toString() ?? '')
 
-    for (const value of values) {
-      if (value.trim().length > 0) {
-        sources.push({ value, origin: 'extended' })
+      for (const value of values) {
+        if (value.trim().length > 0) {
+          sources.push({ value, origin: 'extended' })
+        }
       }
     }
   }

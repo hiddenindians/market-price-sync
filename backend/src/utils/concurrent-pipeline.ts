@@ -263,7 +263,38 @@ export class ConcurrentPipeline<T = SetData> {
 
       if (this.dbNewQueue.length > 0) {
         const batch = this.dbNewQueue.splice(0, this.options.dbBatchSize)
-        await productsCollection.insertMany(batch as any, { ordered: false })
+        try {
+          await productsCollection.insertMany(batch as any, { ordered: false })
+        } catch (error: any) {
+          if (error.code === 11000) {
+            // Gracefully handle duplicate key errors
+            const successCount = error.result?.insertedCount || 0
+            const failCount = batch.length - successCount
+            console.log(
+              `[pipeline] Insert batch partially completed: ${successCount} inserted, ${failCount} duplicates skipped`
+            )
+
+            // Log the first few duplicates for debugging
+            if (error.writeErrors && error.writeErrors.length > 0) {
+              const sampleErrors = error.writeErrors.slice(0, 3)
+              console.log(`[pipeline] Sample duplicate keys:`)
+              sampleErrors.forEach((err: any) => {
+                const doc = batch[err.index]
+                if (doc) {
+                  console.log(
+                    `  - tcgcsv_id: ${doc.external_id?.tcgcsv_id}, collector_number: ${doc.collector_number || 'N/A'}, rarity: ${doc.rarity || 'N/A'}, print: ${doc.print || 'N/A'}, finish: ${doc.finish || 'N/A'}`
+                  )
+                }
+              })
+              if (error.writeErrors.length > 3) {
+                console.log(`  ... and ${error.writeErrors.length - 3} more duplicates`)
+              }
+            }
+            // Don't throw - we want to continue processing
+            return
+          }
+          throw error
+        }
       }
 
       if (this.dbUpdateQueue.length > 0) {
@@ -276,7 +307,36 @@ export class ConcurrentPipeline<T = SetData> {
           }
         }))
 
-        await productsCollection.bulkWrite(operations, { ordered: false })
+        try {
+          await productsCollection.bulkWrite(operations, { ordered: false })
+        } catch (error: any) {
+          if (error.code === 11000) {
+            // Gracefully handle duplicate key errors in updates
+            const successCount = error.result?.modifiedCount || 0
+            const matchedCount = error.result?.matchedCount || 0
+            console.log(
+              `[pipeline] Update batch partially completed: ${matchedCount} matched, ${successCount} modified`
+            )
+
+            // Log the first few duplicates for debugging
+            if (error.writeErrors && error.writeErrors.length > 0) {
+              const sampleErrors = error.writeErrors.slice(0, 3)
+              console.log(`[pipeline] Sample update conflicts:`)
+              sampleErrors.forEach((err: any) => {
+                const operation = batch[err.index]
+                if (operation) {
+                  console.log(`  - Document ID: ${operation.id}, attempted update caused duplicate key`)
+                }
+              })
+              if (error.writeErrors.length > 3) {
+                console.log(`  ... and ${error.writeErrors.length - 3} more conflicts`)
+              }
+            }
+            // Don't throw - we want to continue processing
+            return
+          }
+          throw error
+        }
       }
 
       if (this.migrationQueue.length > 0) {
