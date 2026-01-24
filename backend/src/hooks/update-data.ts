@@ -500,8 +500,8 @@ const processProductsAndPrices = async (context: HookContext) => {
   console.log(`[processProductsAndPrices] Starting concurrent pipeline for ${totalSets} sets`)
 
   const pipeline = new ConcurrentPipeline({
-    fetchConcurrency: 10,
-    processConcurrency: 10,
+    fetchConcurrency: 8,
+    processConcurrency: 8,
     dbConcurrency: 5,
     dbBatchSize: 2000,
     rateLimit: RATE_LIMIT
@@ -857,12 +857,11 @@ const processProductsAndPrices = async (context: HookContext) => {
         }
       },
       {
-        $match: { 'uniqueTcgcsvIds.1': { exists: true } }
+        $match: { 'uniqueTcgcsvIds.1': { $exists: true } }
       }
     ],
     paginate: false
   })
-  console.log('duplicate groups: ', duplicateGroups.length)
 
   const typedDuplicateGroups = duplicateGroups as unknown as DuplicateGroup[]
 
@@ -895,8 +894,6 @@ const processProductsAndPrices = async (context: HookContext) => {
       }
     }
   }
-
-  console.log(duplicateGroups)
 
   console.timeEnd('Final Name Disambiguation Sweep')
 

@@ -170,7 +170,19 @@ export class ConcurrentPipeline<T = SetData> {
         this.activeFetchers++
         try {
           await this.acquireToken()
-          const result = await task()
+          
+          let result: T | null = null
+          try {
+            result = await task()
+          } catch (taskError: any) {
+            console.error(`[pipeline] Task execution failed:`, taskError.message || taskError)
+            // Log additional details if it's an Axios error
+            if (taskError.response) {
+              console.error(`[pipeline] HTTP ${taskError.response.status}: ${taskError.config?.url}`)
+            }
+            // Swallow the error to keep worker alive and continue processing
+            result = null
+          }
 
           if (result && this.processCallback) {
             const processedData = await this.processCallback(result)
