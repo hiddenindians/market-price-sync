@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common'
+
 import { Component, Inject, OnInit } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { MatButtonModule } from '@angular/material/button'
@@ -9,19 +9,17 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner'
 import { DataService } from '../../services/data/data.service'
 
 @Component({
-  selector: 'app-unmatched-product-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
+    selector: 'app-unmatched-product-dialog',
+    imports: [
     FormsModule,
     MatButtonModule,
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule
-  ],
-  templateUrl: './unmatched-product-dialog.component.html',
-  styleUrl: './unmatched-product-dialog.component.scss'
+],
+    templateUrl: './unmatched-product-dialog.component.html',
+    styleUrl: './unmatched-product-dialog.component.scss'
 })
 export class UnmatchedProductDialogComponent implements OnInit {
   searchTerm = ''

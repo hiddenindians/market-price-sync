@@ -1,7 +1,7 @@
 import { Component, DestroyRef, inject, OnInit } from '@angular/core'
 import { Validators, FormGroup, FormControl, ReactiveFormsModule } from '@angular/forms'
 import { ActivatedRoute, Router, RouterLink } from '@angular/router'
-import { NgIf } from '@angular/common'
+
 import { Errors } from '../../shared/models/errors.model'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop'
 import { AuthService } from '../../services/auth/auth.service'
@@ -22,20 +22,18 @@ interface StoreForm {
 }
 
 @Component({
-  selector: 'app-auth-page',
-  templateUrl: './auth.component.html',
-  styleUrl: './auth.component.scss',
-  imports: [
+    selector: 'app-auth-page',
+    templateUrl: './auth.component.html',
+    styleUrl: './auth.component.scss',
+    imports: [
     RouterLink,
-    NgIf,
     ReactiveFormsModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
     MatStepperModule
-  ],
-  standalone: true
+]
 })
 export default class AuthComponent implements OnInit {
   authType = ''

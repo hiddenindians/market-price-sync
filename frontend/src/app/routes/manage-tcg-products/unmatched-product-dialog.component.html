@@ -11,30 +11,38 @@
     </button>
   </div>
 
-  <div class="dialog__status" *ngIf="isLoading">
-    <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
-    <span>Searching...</span>
-  </div>
-
-  <div class="dialog__error" *ngIf="!isLoading && errorMessage">
-    {{ errorMessage }}
-  </div>
-
-  <div class="dialog__results" *ngIf="!isLoading && results.length">
-    <div class="dialog__result" *ngFor="let product of results">
-      <div class="dialog__result-main">
-        <div class="dialog__result-name">{{ product.name }}</div>
-        <div class="dialog__result-meta">
-          <span>Rarity: {{ product.rarity || 'n/a' }}</span>
-          <span>Set: {{ product._resolvedSetName || 'n/a' }}</span>
-          <span>Game: {{ product._resolvedGameName || 'n/a' }}</span>
-        </div>
-      </div>
-      <button type="button" mat-stroked-button color="accent" (click)="selectProduct(product)">
-        Select
-      </button>
+  @if (isLoading) {
+    <div class="dialog__status">
+      <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+      <span>Searching...</span>
     </div>
-  </div>
+  }
+
+  @if (!isLoading && errorMessage) {
+    <div class="dialog__error">
+      {{ errorMessage }}
+    </div>
+  }
+
+  @if (!isLoading && results.length) {
+    <div class="dialog__results">
+      @for (product of results; track product) {
+        <div class="dialog__result">
+          <div class="dialog__result-main">
+            <div class="dialog__result-name">{{ product.name }}</div>
+            <div class="dialog__result-meta">
+              <span>Rarity: {{ product.rarity || 'n/a' }}</span>
+              <span>Set: {{ product._resolvedSetName || 'n/a' }}</span>
+              <span>Game: {{ product._resolvedGameName || 'n/a' }}</span>
+            </div>
+          </div>
+          <button type="button" mat-stroked-button color="accent" (click)="selectProduct(product)">
+            Select
+          </button>
+        </div>
+      }
+    </div>
+  }
 
   <div class="dialog__actions">
     <button type="button" mat-button (click)="cancel()">Close</button>

@@ -33,4 +33,24 @@
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
 }
+
+:root {
+  --app-bg: #0b0f14;
+  --app-bg-elev: #111824;
+  --app-text: #e6edf3;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+app-root {
+  display: block;
+  min-height: 100%;
+  background: var(--app-bg);
+}
   

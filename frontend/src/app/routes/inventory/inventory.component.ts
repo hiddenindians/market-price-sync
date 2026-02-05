@@ -10,19 +10,18 @@ import { MatCardModule } from '@angular/material/card';
 import { RouterLink } from '@angular/router';
 
 @Component({
-  selector: 'app-inventory',
-  templateUrl: './inventory.component.html',
-  styleUrl: './inventory.component.scss',
-  standalone: true,
-  imports: [
-    AsyncPipe,
-    MatGridListModule,
-    MatMenuModule,
-    MatIconModule,
-    MatButtonModule,
-    MatCardModule,
-    RouterLink,
-  ]
+    selector: 'app-inventory',
+    templateUrl: './inventory.component.html',
+    styleUrl: './inventory.component.scss',
+    imports: [
+        AsyncPipe,
+        MatGridListModule,
+        MatMenuModule,
+        MatIconModule,
+        MatButtonModule,
+        MatCardModule,
+        RouterLink,
+    ]
 })
 export class InventoryComponent {
   private breakpointObserver = inject(BreakpointObserver);

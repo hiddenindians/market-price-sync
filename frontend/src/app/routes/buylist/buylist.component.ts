@@ -4,11 +4,10 @@ import { DataService } from '../../services/data/data.service'
 import { MatCardModule } from '@angular/material/card'
 
 @Component({
-  selector: 'app-buylist',
-  standalone: true,
-  imports: [MatCardModule],
-  templateUrl: './buylist.component.html',
-  styleUrl: './buylist.component.scss'
+    selector: 'app-buylist',
+    imports: [MatCardModule],
+    templateUrl: './buylist.component.html',
+    styleUrl: './buylist.component.scss'
 })
 export class BuylistComponent {
   _auth = inject(AuthService)

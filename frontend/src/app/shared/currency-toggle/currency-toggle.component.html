@@ -7,8 +7,12 @@
     </mat-select>
   </mat-form-field>
 
-  <div class="currency-toggle__meta" *ngIf="(currency$ | async) === 'CAD'">
-    <span>Rate: {{ cadRate$ | async | number:'1.2-2' }} CAD/USD</span>
-    <span *ngIf="rateUpdated$ | async as updated">· Updated {{ updated | date:'short' }}</span>
-  </div>
+  @if ((currency$ | async) === 'CAD') {
+    <div class="currency-toggle__meta">
+      <span>Rate: {{ cadRate$ | async | number:'1.2-2' }} CAD/USD</span>
+      @if (rateUpdated$ | async; as updated) {
+        <span>· Updated {{ updated | date:'short' }}</span>
+      }
+    </div>
+  }
 </div>

@@ -1,5 +1,5 @@
 import { Component, HostListener, OnInit, ViewChild } from '@angular/core'
-import { CommonModule } from '@angular/common'
+
 import { DataService } from '../../services/data/data.service'
 import { DataTableComponent } from '../../shared/data-table/data-table.component'
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator'
@@ -22,10 +22,8 @@ import { UnmatchedProductDialogComponent } from './unmatched-product-dialog.comp
 import { CurrencyToggleComponent } from '../../shared/currency-toggle/currency-toggle.component'
 import { CurrencyService } from '../../services/currency/currency.service'
 @Component({
-  selector: 'app-manage-tcg-products',
-  standalone: true,
-  imports: [
-    CommonModule,
+    selector: 'app-manage-tcg-products',
+    imports: [
     FormsModule,
     DataTableComponent,
     MatSelectModule,
@@ -42,9 +40,9 @@ import { CurrencyService } from '../../services/currency/currency.service'
     MatFormFieldModule,
     MatIconModule,
     CurrencyToggleComponent
-  ],
-  templateUrl: './manage-tcg-products.component.html',
-  styleUrl: './manage-tcg-products.component.scss'
+],
+    templateUrl: './manage-tcg-products.component.html',
+    styleUrl: './manage-tcg-products.component.scss'
 })
 export class ManageTCGProductsComponent implements OnInit {
   games: any[] = []

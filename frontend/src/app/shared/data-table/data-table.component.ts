@@ -20,25 +20,24 @@ import { MatInputModule } from '@angular/material/input'
 import { MatCardModule } from '@angular/material/card';
 import { CurrencyService } from '../../services/currency/currency.service'
 @Component({
-  selector: 'app-data-table',
-  standalone: true,
-  imports: [
-    CommonModule,
-    MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
-    MatSlideToggleModule,
-    MatInputModule, MatCardModule
-  ],
-  animations: [
-    trigger('detailExpand', [
-      state('collapsed,void', style({height: '0px', minHeight: '0'})),
-      state('expanded', style({height: '*'})),
-      transition('expanded <=> collapsed', animate('225ms cubic-bezier(0.4, 0.0, 0.2, 1)')),
-    ]),
-  ],
-  templateUrl: './data-table.component.html',
-  styleUrls: ['./data-table.component.scss']
+    selector: 'app-data-table',
+    imports: [
+        CommonModule,
+        MatTableModule,
+        MatSortModule,
+        MatPaginatorModule,
+        MatSlideToggleModule,
+        MatInputModule, MatCardModule
+    ],
+    animations: [
+        trigger('detailExpand', [
+            state('collapsed,void', style({ height: '0px', minHeight: '0' })),
+            state('expanded', style({ height: '*' })),
+            transition('expanded <=> collapsed', animate('225ms cubic-bezier(0.4, 0.0, 0.2, 1)')),
+        ]),
+    ],
+    templateUrl: './data-table.component.html',
+    styleUrls: ['./data-table.component.scss']
 })
 export class DataTableComponent implements OnChanges {
   isServerSideSorting: boolean = true
