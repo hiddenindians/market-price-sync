@@ -99,9 +99,7 @@ export class ProductFiltersService<
       .sort((a, b) => a.label.localeCompare(b.label))
 
     const rawPrints = (aggregationResult?.prints ?? []).map((entry) => entry?._id)
-    const uniquePrints = Array.from(new Set(rawPrints.filter(isNonEmptyString))).filter(
-      (key) => !isFinishKey(key) || key === 'base'
-    )
+    const uniquePrints = Array.from(new Set(rawPrints.filter(isNonEmptyString)))
 
     if (!uniquePrints.includes('base')) {
       uniquePrints.unshift('base')

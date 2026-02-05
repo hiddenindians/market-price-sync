@@ -330,9 +330,15 @@ const extractVariantSources = (input?: VariantDetectionInput | null): VariantSou
   const extended = Array.isArray(extended_data) ? extended_data : []
   for (const entry of extended) {
     if (!isExtendedDataEntry(entry)) continue
-    
+
+    const candidateValues = [entry.name, entry.display_name, entry.value]
+      .filter(Boolean)
+      .map((value) => value?.toString() ?? '')
+
+    const hasNamedRarity = entry.name && entry.name.toLowerCase() === 'rarity'
+
     // Whitelist: Only process the "Rarity" field
-    if (entry.name && entry.name.toLowerCase() === 'rarity') {
+    if (hasNamedRarity) {
       const values = [entry.name, entry.display_name, entry.value]
         .filter(Boolean)
         .map((value) => value?.toString() ?? '')
@@ -340,6 +346,22 @@ const extractVariantSources = (input?: VariantDetectionInput | null): VariantSou
       for (const value of values) {
         if (value.trim().length > 0) {
           sources.push({ value, origin: 'extended' })
+        }
+      }
+      continue
+    }
+
+    // Fallback: allow unnamed entries only when the value clearly matches known variant keywords.
+    if (!entry.name && candidateValues.length > 0) {
+      for (const value of candidateValues) {
+        const segments = collectVariantSegments(value, { includeFull: true })
+        const matchesKnownVariant = VARIANT_KEYWORDS.some(({ keywords }) =>
+          segments.some((segment) => keywords.some((keyword) => keywordMatchesSegment(segment, keyword)))
+        )
+
+        if (matchesKnownVariant) {
+          sources.push({ value, origin: 'extended' })
+          break
         }
       }
     }
@@ -365,7 +387,7 @@ export const derivePrintFromProduct = (product?: Partial<Products> | null): Prin
   }
 
   const variant = detectPrintVariant(product as VariantDetectionInput)
-  if (variant.key && !isFinishKey(variant.key)) {
+  if (variant.key && variant.key !== 'base' && !isFinishKey(variant.key)) {
     return variant
   }
 
