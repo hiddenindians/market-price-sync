@@ -1,4 +1,4 @@
-<div class="mat-elevation-z8">
+<div class="mat-elevation-z8 table-wrapper">
   <!-- <mat-paginator [length]="totalLength" [pageSizeOptions]="[100, 200, 1000]" showFirstLastButtons></mat-paginator> -->
 
   <table mat-table [dataSource]="dataSource" class="mat-table" multiTemplateDataRows matSort
@@ -15,9 +15,9 @@
           } @else {
             {{element.name}}
           }
-        </ng-container>
+          </ng-container>
           <ng-container *ngSwitchCase="'market_price'">
-            {{element.market_price}}
+            {{ displayPrice(element.market_price) | number:'1.2-2' }}
           </ng-container>
           <ng-container class="overflow" *ngSwitchCase="'image_url'">
             <img [src]="getNestedValue(element, column)" alt="{{getNestedValue(element, 'name')}}"
@@ -96,6 +96,10 @@
           <mat-card>
             <mat-card-header>
               <mat-card-title>{{element.name}}</mat-card-title>
+              <mat-card-subtitle class="expanded-meta">
+                <span *ngIf="element.set_id">Set: {{ getSetName(element.set_id) }}</span>
+                <span *ngIf="element.game_id">Game: {{ getGameName(element.game_id) }}</span>
+              </mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
               <div class="condition-grid">
@@ -156,5 +160,10 @@
     <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="example-detail-row"></tr>
 
   </table>
-  <mat-paginator [length]="totalLength" [pageSizeOptions]="[50, 100, 250, 500, 1000]" showFirstLastButtons></mat-paginator>
+  <mat-paginator
+    class="table-paginator"
+    [length]="totalLength"
+    [pageSizeOptions]="[50, 100, 250, 500, 1000]"
+    showFirstLastButtons
+  ></mat-paginator>
 </div>

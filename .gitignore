@@ -1,3 +1,42 @@
 node_modules
 /mps.product_backup.json
 mps.products*
+.env
+.env.*
+!.env.example
+
+.DS_Store
+.Thumbs*
+
+# Logs
+*.log
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build output
+/backend/lib
+/frontend/dist
+/frontend/tmp
+/frontend/out-tsc
+/frontend/bazel-out
+/frontend/.angular/cache
+*.tsbuildinfo
+
+# Coverage
+/coverage
+/frontend/coverage
+.nyc_output
+
+# Tooling
+.cache
+.eslintcache
+.idea/
+**/.vscode/*
+!**/.vscode/settings.json
+!**/.vscode/tasks.json
+!**/.vscode/launch.json
+!**/.vscode/extensions.json
+
+# System files
+Thumbs.db

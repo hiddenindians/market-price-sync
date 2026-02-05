@@ -21,6 +21,9 @@ export class BuylistComponent {
 
   ngOnInit() {
     this.userSubscription$ = this._auth.currentUser.subscribe((user: any) => {
+      if (!user?.user?.store_id) {
+        return
+      }
       this.storeId = user.user.store_id
       this.fetchProducts()
     })

@@ -1,4 +1,5 @@
-import { Component, OnInit, ViewChild } from '@angular/core'
+import { Component, HostListener, OnInit, ViewChild } from '@angular/core'
+import { CommonModule } from '@angular/common'
 import { DataService } from '../../services/data/data.service'
 import { DataTableComponent } from '../../shared/data-table/data-table.component'
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator'
@@ -12,20 +13,35 @@ import { MatButtonModule } from '@angular/material/button'
 import { AuthService } from '../../services/auth/auth.service'
 import { MatCheckboxChange, MatCheckboxModule } from '@angular/material/checkbox'
 import { MatCardModule } from '@angular/material/card'
+import { MatProgressBarModule } from '@angular/material/progress-bar'
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner'
+import { MatDialog, MatDialogModule } from '@angular/material/dialog'
+import { MatFormFieldModule } from '@angular/material/form-field'
+import { MatIconModule } from '@angular/material/icon'
+import { UnmatchedProductDialogComponent } from './unmatched-product-dialog.component'
+import { CurrencyToggleComponent } from '../../shared/currency-toggle/currency-toggle.component'
+import { CurrencyService } from '../../services/currency/currency.service'
 @Component({
   selector: 'app-manage-tcg-products',
   standalone: true,
   imports: [
+    CommonModule,
     FormsModule,
     DataTableComponent,
     MatSelectModule,
     MatTableModule,
-  MatSortModule,
-  MatPaginatorModule,
-  MatInputModule,
-  MatButtonModule,
-  MatCheckboxModule,
-  MatCardModule
+    MatSortModule,
+    MatPaginatorModule,
+    MatInputModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatCardModule,
+    MatProgressBarModule,
+    MatProgressSpinnerModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    CurrencyToggleComponent
   ],
   templateUrl: './manage-tcg-products.component.html',
   styleUrl: './manage-tcg-products.component.scss'
@@ -69,15 +85,37 @@ export class ManageTCGProductsComponent implements OnInit {
   maxPriceInput: string = ''
   minPriceFilter: number | null = null
   maxPriceFilter: number | null = null
-  CAD: number = 1.41
   userSubscription: any
   storeId: string = ''
   newOnlyForSet: boolean = false
   newOnlyForGame: boolean = false
   filteredProducts: any[] = []
   isExporting = false
+  isProcessing = false
+  processingPhase: 'idle' | 'parsing' | 'processing' | 'done' = 'idle'
+  processingType: 'retail' | 'ecom' | null = null
+  totalRows = 0
+  processedRows = 0
+  matchedRows = 0
+  updatedRows = 0
+  skippedRows = 0
+  errorRows = 0
+  processingMessage = ''
+  unmatchedRows: UnmatchedRow[] = []
+  unmatchedStorageKey = 'tcg_unmatched_rows_v1'
+  showAllUnmatched = false
+  unmatchedVisibleLimit = 200
+  conditionOptions = ['near_mint', 'lightly_played', 'moderately_played', 'heavily_played', 'damaged']
+  showBackToTop = false
+  gameLookup: Record<string, string> = {}
+  setLookup: Record<string, string> = {}
 
-  constructor(private data: DataService, private auth: AuthService) {
+  constructor(
+    private data: DataService,
+    private auth: AuthService,
+    private dialog: MatDialog,
+    private currency: CurrencyService
+  ) {
     this.debouncedSearch = this.debounce(this.executeSearch.bind(this), 300)
   }
 
@@ -91,8 +129,30 @@ export class ManageTCGProductsComponent implements OnInit {
 
   private debouncedSearch: (...args: any[]) => void
 
+  get progressPercent() {
+    if (!this.totalRows) {
+      return 0
+    }
+    return Math.round((this.processedRows / this.totalRows) * 100)
+  }
+
+  get unmatchedCount() {
+    return this.unmatchedRows.length
+  }
+
+  get visibleUnmatchedRows() {
+    if (this.showAllUnmatched) {
+      return this.unmatchedRows
+    }
+    return this.unmatchedRows.slice(0, this.unmatchedVisibleLimit)
+  }
+
   ngOnInit() {
+    this.loadPersistedUnmatchedRows()
     this.userSubscription = this.auth.currentUser.subscribe((user: any) => {
+      if (!user?.user?.store_id) {
+        return
+      }
       console.log(user.user)
       this.storeId = user.user.store_id
       console.log(this.storeId)
@@ -106,6 +166,15 @@ export class ManageTCGProductsComponent implements OnInit {
 
   ngOnDestroy() {
     this.userSubscription.unsubscribe()
+  }
+
+  @HostListener('window:scroll')
+  onWindowScroll() {
+    this.showBackToTop = window.scrollY > 400
+  }
+
+  scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   filter(event: Event) {
@@ -137,6 +206,7 @@ export class ManageTCGProductsComponent implements OnInit {
     try {
       const data = await this.data.getGames(limit, skip, sort)
       this.games = data.data
+      this.gameLookup = this.buildNameLookup(this.games)
       if (!this.games.length) {
         return
       }
@@ -153,6 +223,7 @@ export class ManageTCGProductsComponent implements OnInit {
     try {
       const data = await this.data.getSetsForGame(gameId)
       this.sets = data.data
+      this.setLookup = this.buildNameLookup(this.sets)
     } catch (error) {
       console.error('Error fetching sets: ', error)
     }
@@ -200,21 +271,51 @@ export class ManageTCGProductsComponent implements OnInit {
       this.data.getProductsForSet(setId, limit, skip, sort, filters).then((data: any) => {
         this.products = data.data
         this.totalLength = data.total ?? data.data?.length ?? 0
+        this.ensureSetLookup(this.products)
         this.applyLocalSearch()
       })
     } else if (gameId && gameId !== '') {
       this.data.getProductsForGame(gameId, limit, skip, sort, filters).then((data: any) => {
         this.products = data.data
         this.totalLength = data.total ?? data.data?.length ?? 0
+        this.ensureSetLookup(this.products)
         this.applyLocalSearch()
       })
     } else if (term && term !== '') {
       this.data.search(term, sort, filters, { limit, skip }).then((data: any) => {
         this.products = data.data
         this.totalLength = data.total ?? data.data?.length ?? 0
+        this.ensureSetLookup(this.products)
         this.applyLocalSearch()
       })
     }
+  }
+
+  private async ensureSetLookup(products: any[]) {
+    const missingSetIds = Array.from(
+      new Set(
+        products
+          .map((product) => product?.set_id)
+          .filter((setId) => setId && !this.setLookup[setId])
+      )
+    )
+
+    if (!missingSetIds.length) {
+      return
+    }
+
+    await Promise.all(
+      missingSetIds.map(async (setId) => {
+        try {
+          const name = await this.data.getSetNameFromId(setId)
+          if (name) {
+            this.setLookup[setId] = name
+          }
+        } catch (error) {
+          console.error('Error fetching set name', error)
+        }
+      })
+    )
   }
 
   applyLocalSearch(term: string = this.currentFilterTerm) {
@@ -326,129 +427,556 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   importRetailCSV(event: Event) {
-    console.time('building retail json object')
+    this.beginProcessing('retail')
     const element = event.currentTarget as HTMLInputElement
     let fileList: FileList | null = element.files
     if (fileList) {
       Papa.parse(fileList[0], {
         header: true,
         skipEmptyLines: true,
+        worker: true,
         complete: (results) => {
-          console.timeEnd('building retail json object')
+          this.initializeProcessing(results.data?.length ?? 0)
           this.processRetailCSV(results)
         }
       })
     }
   }
   importEComCSV(event: Event) {
-    console.time('building ecom json object')
+    this.beginProcessing('ecom')
     const element = event.currentTarget as HTMLInputElement
     let fileList: FileList | null = element.files
     if (fileList) {
       Papa.parse(fileList[0], {
         header: true,
         skipEmptyLines: true,
+        worker: true,
         complete: (results) => {
-          console.timeEnd('building ecom json object')
+          this.initializeProcessing(results.data?.length ?? 0)
           this.processEComCSV(results)
         }
       })
     }
   }
 
-  async processEComCSV(results: any) {
-    console.time('processing ecom json object')
-    const products = results.data
+  private beginProcessing(type: 'retail' | 'ecom') {
+    this.isProcessing = true
+    this.processingPhase = 'parsing'
+    this.processingType = type
+    this.processingMessage = ''
+    this.totalRows = 0
+    this.processedRows = 0
+    this.matchedRows = 0
+    this.updatedRows = 0
+    this.skippedRows = 0
+    this.errorRows = 0
+  }
 
-    await Promise.all(
-      products.map(async (product: any) => {
-        try {
-          let category = product['EN_Category_3']
-          if (category !== 'Single Cards') {
-            return
-          }
+  private initializeProcessing(totalRows: number) {
+    this.processingPhase = 'processing'
+    this.totalRows = totalRows
+    this.processingMessage = ''
+  }
 
-          let name = product['EN_Title_Long']
-          let condition = 'near_mint'
-          let found = false
-          if (name.endsWith('(LP)')) {
-            console.log(name)
-            condition = 'lightly_played'
-            name = name.slice(0, -5) // Remove ' (LP)' from the end
-            console.log(name)
-          } else if (name.endsWith('(MP)')) {
-            condition = 'moderately_played'
-            name = name.slice(0, -5) // Remove ' (MP)' from the end
-          } else if (name.endsWith('(HP)')) {
-            condition = 'heavily_played'
-            name = name.slice(0, -5) // Remove ' (HP)' from the end
-          } else if (name.endsWith('(DMG)')) {
-            condition = 'damaged'
-            name = name.slice(0, -6) // Remove ' (DMG)' from the end
-          }
+  private finalizeProcessing(message: string) {
+    this.processingPhase = 'done'
+    this.isProcessing = false
+    this.processingMessage = message
+  }
 
-          if (!found) {
-            const byIds = await this.data.getProductByEComIDs(
-              this.storeId,
-              condition,
-              product.Internal_ID,
-              product.Internal_Variant_ID
-            )
-            if (byIds.total === 1) {
-              found = true
-              //found on ecom details. do thing
-              console.log('found on ecom ids')
-            }
-          }
-          if (!found) {
-            const bySystemId = await this.data.getProductByPOSId(
-              product.manufacturer_sku,
-              this.storeId,
-              condition
-            )
+  private loadPersistedUnmatchedRows() {
+    const raw = window.localStorage.getItem(this.unmatchedStorageKey)
+    if (!raw) {
+      return
+    }
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        this.unmatchedRows = parsed
+          .filter((row) => row && typeof row === 'object')
+          .map((row, index) => ({
+            id: row.id ?? `legacy-${Date.now()}-${index}`,
+            importType: row.importType ?? 'retail',
+            row: row.row ?? index + 1,
+            name: row.name ?? '',
+            systemId: row.systemId ?? '',
+            condition: row.condition ?? 'near_mint',
+            internalId: row.internalId ?? '',
+            internalVariantId: row.internalVariantId ?? '',
+            manufacturerSku: row.manufacturerSku ?? '',
+            category: row.category ?? '',
+            quantity: row.quantity ?? '',
+            cost: row.cost ?? null,
+            price: row.price ?? null,
+            reason: row.reason ?? 'no_match',
+            status: row.status ?? 'unmatched',
+            createdAt: row.createdAt ?? new Date().toISOString(),
+            lastUpdatedAt: row.lastUpdatedAt
+          }))
+      }
+    } catch (error) {
+      console.error('Failed to load unmatched rows', error)
+    }
+  }
 
-            if (bySystemId.total === 1) {
-              found = true
-              console.log('found by systemID')
-              let foundProduct = bySystemId.data[0]
-              await this.data.patchProduct(foundProduct._id, {
-                [`store_status.${this.storeId}.${condition}.ecom_pid`]: product['Internal_ID'],
-                [`store_status.${this.storeId}.${condition}.ecom_vid`]: product['Internal_Variant_ID']
-              })
-            }
-          }
-          if (!found) {
-            console.log('by name: ' + name)
-            const byName = await this.data.getProduct({
-              name: name
-            })
-            if (byName.total === 1) {
-              found = true
-              let foundProduct = byName.data[0]
-              await this.data.patchProduct(foundProduct._id, {
-                [`store_status.${this.storeId}.${condition}.ecom_pid`]: product['Internal_ID'],
-                [`store_status.${this.storeId}.${condition}.ecom_vid`]: product['Internal_Variant_ID']
-              })
-            }
-          }
+  private persistUnmatchedRows() {
+    try {
+      window.localStorage.setItem(this.unmatchedStorageKey, JSON.stringify(this.unmatchedRows))
+    } catch (error) {
+      console.error('Failed to persist unmatched rows', error)
+    }
+  }
 
-          if (!found) {
-            //no match
-            console.log(`No match for ${product['EN_Title_Long']}`)
-          }
-        } catch (error: any) {
-          console.error(error)
-        }
-      })
+  private applyProcessResult(result: ProcessResult) {
+    if (result.matched) {
+      this.matchedRows += 1
+    }
+    if (result.updated) {
+      this.updatedRows += 1
+    }
+    if (result.skipped) {
+      this.skippedRows += 1
+    }
+    if (result.unmatched) {
+      this.recordUnmatched(result.unmatched)
+    }
+    if (result.error) {
+      this.errorRows += 1
+    }
+  }
+
+  private async processInBatches<T>(
+    items: T[],
+    batchSize: number,
+    handler: (item: T, index: number) => Promise<ProcessResult>
+  ) {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize)
+      await Promise.all(
+        batch.map(async (item, offset) => {
+          const index = i + offset
+          const result = await handler(item, index).catch((error: any) => {
+            console.error(error)
+            return { error: true }
+          })
+          this.applyProcessResult(result)
+          this.processedRows += 1
+        })
+      )
+    }
+  }
+
+  private recordUnmatched(entry: UnmatchedRow) {
+    this.unmatchedRows.push(entry)
+    this.persistUnmatchedRows()
+  }
+
+  private createUnmatchedRow(
+    importType: 'retail' | 'ecom',
+    index: number,
+    payload: Partial<UnmatchedRow>
+  ): UnmatchedRow {
+    const now = new Date().toISOString()
+    return {
+      id: `${importType}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+      importType,
+      row: index + 1,
+      name: payload.name ?? '',
+      systemId: payload.systemId ?? '',
+      condition: payload.condition ?? 'near_mint',
+      internalId: payload.internalId ?? '',
+      internalVariantId: payload.internalVariantId ?? '',
+      manufacturerSku: payload.manufacturerSku ?? '',
+      category: payload.category ?? '',
+      quantity: payload.quantity ?? '',
+      cost: payload.cost ?? null,
+      price: payload.price ?? null,
+      reason: payload.reason ?? 'no_match',
+      status: 'unmatched',
+      createdAt: now,
+      lastUpdatedAt: now
+    }
+  }
+
+  private buildNameLookup(items: any[]) {
+    const lookup: Record<string, string> = {}
+    items.forEach((item) => {
+      if (item?._id && item?.name) {
+        lookup[item._id] = item.name
+      }
+    })
+    return lookup
+  }
+
+  downloadUnmatchedCsv() {
+    if (!this.unmatchedRows.length) {
+      return
+    }
+    const csv = Papa.unparse(
+      this.unmatchedRows.map((row) => ({
+        id: row.id,
+        importType: row.importType,
+        row: row.row,
+        name: row.name ?? '',
+        systemId: row.systemId ?? '',
+        condition: row.condition ?? '',
+        internalId: row.internalId ?? '',
+        internalVariantId: row.internalVariantId ?? '',
+        manufacturerSku: row.manufacturerSku ?? '',
+        quantity: row.quantity ?? '',
+        cost: row.cost ?? '',
+        price: row.price ?? '',
+        reason: row.reason ?? ''
+      }))
     )
-    console.timeEnd('processing ecom json object')
-    alert('done processing')
+    const typeLabel = this.processingType ?? 'import'
+    this.downloadBlob(csv, `unmatched_${typeLabel}_${Date.now()}.csv`, 'text/csv;charset=utf-8')
+  }
+
+  onUnmatchedEdit(row?: UnmatchedRow) {
+    if (row) {
+      row.lastUpdatedAt = new Date().toISOString()
+    }
+    this.persistUnmatchedRows()
+  }
+
+  dismissUnmatched(row: UnmatchedRow) {
+    this.unmatchedRows = this.unmatchedRows.filter((entry) => entry.id !== row.id)
+    this.persistUnmatchedRows()
+  }
+
+  copyToClipboard(value: string) {
+    const text = value?.toString() ?? ''
+    if (!text) {
+      return
+    }
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch((error) => {
+        console.error('Clipboard copy failed', error)
+      })
+      return
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    try {
+      document.execCommand('copy')
+    } catch (error) {
+      console.error('Clipboard copy failed', error)
+    } finally {
+      document.body.removeChild(textarea)
+    }
+  }
+
+  async retryUnmatched(row: UnmatchedRow) {
+    if (row.status === 'resolving') {
+      return
+    }
+    if (!this.storeId) {
+      return
+    }
+    row.status = 'resolving'
+    this.persistUnmatchedRows()
+
+    try {
+      const result =
+        row.importType === 'retail'
+          ? await this.resolveRetailRow(row)
+          : await this.resolveEcomRow(row)
+
+      if (result.matched) {
+        this.matchedRows += 1
+        if (result.updated) {
+          this.updatedRows += 1
+        }
+        this.skippedRows = Math.max(0, this.skippedRows - 1)
+        this.dismissUnmatched(row)
+        return
+      }
+
+      row.status = 'failed'
+      row.reason = result.reason ?? row.reason
+      this.persistUnmatchedRows()
+    } catch (error) {
+      console.error('Retry failed', error)
+      row.status = 'failed'
+      this.persistUnmatchedRows()
+    }
+  }
+
+  openProductPicker(row: UnmatchedRow) {
+    if (!this.storeId) {
+      return
+    }
+    this.copyToClipboard(
+      (row.systemId || row.internalId || row.manufacturerSku || '').toString()
+    )
+    const gameLookup = this.buildNameLookup(this.games)
+    const setLookup = this.buildNameLookup(this.sets)
+    const dialogRef = this.dialog.open(UnmatchedProductDialogComponent, {
+      width: '720px',
+      data: {
+        initialTerm: row.name ?? row.systemId ?? '',
+        gameLookup,
+        setLookup
+      }
+    })
+
+    dialogRef.afterClosed().subscribe((product) => {
+      if (!product) {
+        return
+      }
+      this.applyManualMatch(row, product)
+    })
+  }
+
+  private async applyManualMatch(row: UnmatchedRow, product: any) {
+    if (row.status === 'resolving') {
+      return
+    }
+    row.status = 'resolving'
+    this.persistUnmatchedRows()
+
+    try {
+      if (row.importType === 'retail') {
+        await this.applyRetailMatch(row, product)
+      } else {
+        await this.applyEcomMatch(row, product)
+      }
+
+      this.matchedRows += 1
+      this.updatedRows += 1
+      this.skippedRows = Math.max(0, this.skippedRows - 1)
+      this.dismissUnmatched(row)
+    } catch (error) {
+      console.error('Manual match failed', error)
+      row.status = 'failed'
+      this.persistUnmatchedRows()
+    }
+  }
+
+  private async resolveRetailRow(row: UnmatchedRow): Promise<ResolveResult> {
+    const name = (row.name ?? '').toString()
+    const systemId = (row.systemId ?? '').toString()
+    const condition = row.condition ?? 'near_mint'
+
+    if (!name && !systemId) {
+      return { matched: false, reason: 'missing_name_or_system_id' }
+    }
+
+    if (systemId) {
+      const data = await this.data.getProductByPOSId(systemId, this.storeId, condition)
+      if (data.total === 1) {
+        await this.applyRetailMatch(row, data.data[0])
+        return { matched: true, updated: true }
+      }
+      if (data.total > 1) {
+        return { matched: false, reason: 'multiple_pos_matches' }
+      }
+    }
+
+    if (name) {
+      const nameData = await this.data.getProduct({
+        name: name
+      })
+      if (nameData.total === 1) {
+        await this.applyRetailMatch(row, nameData.data[0])
+        return { matched: true, updated: true }
+      }
+
+      if (nameData.total === 0) {
+        return { matched: false, reason: 'no_match' }
+      }
+
+      return { matched: false, reason: 'multiple_name_matches' }
+    }
+
+    return { matched: false, reason: 'no_match' }
+  }
+
+  private async resolveEcomRow(row: UnmatchedRow): Promise<ResolveResult> {
+    const name = (row.name ?? '').toString()
+    const condition = row.condition ?? 'near_mint'
+    const internalId = (row.internalId ?? '').toString()
+    const internalVariantId = (row.internalVariantId ?? '').toString()
+    const manufacturerSku = (row.manufacturerSku ?? '').toString()
+
+    if (!name && !manufacturerSku && !internalId) {
+      return { matched: false, reason: 'missing_identifiers' }
+    }
+
+    if (internalId && internalVariantId) {
+      const byIds = await this.data.getProductByEComIDs(this.storeId, condition, internalId, internalVariantId)
+      if (byIds.total === 1) {
+        return { matched: true, updated: false }
+      }
+    }
+
+    if (manufacturerSku) {
+      const bySystemId = await this.data.getProductByPOSId(manufacturerSku, this.storeId, condition)
+      if (bySystemId.total === 1) {
+        await this.applyEcomMatch(row, bySystemId.data[0])
+        return { matched: true, updated: true }
+      }
+    }
+
+    if (name) {
+      const byName = await this.data.getProduct({
+        name: name
+      })
+      if (byName.total === 1) {
+        await this.applyEcomMatch(row, byName.data[0])
+        return { matched: true, updated: true }
+      }
+
+      if (byName.total === 0) {
+        return { matched: false, reason: 'no_match' }
+      }
+
+      return { matched: false, reason: 'multiple_name_matches' }
+    }
+
+    return { matched: false, reason: 'no_match' }
+  }
+
+  private async applyRetailMatch(row: UnmatchedRow, product: any) {
+    const condition = row.condition ?? 'near_mint'
+    const quantity = Number(row.quantity ?? 0)
+    const cost = row.cost ?? null
+
+    let patchBody: Record<string, any> = {
+      [`store_status.${this.storeId}.${condition}.selling.enabled`]: true,
+      [`store_status.${this.storeId}.${condition}.selling.quantity`]: quantity
+    }
+
+    if (row.systemId) {
+      patchBody[`store_status.${this.storeId}.${condition}.pos_id`] = row.systemId
+    }
+
+    if (cost !== null && cost !== undefined) {
+      patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
+    }
+
+    await this.data.patchProduct(product._id, patchBody)
+  }
+
+  private async applyEcomMatch(row: UnmatchedRow, product: any) {
+    const condition = row.condition ?? 'near_mint'
+    const internalId = row.internalId ?? ''
+    const internalVariantId = row.internalVariantId ?? ''
+
+    if (!internalId || !internalVariantId) {
+      throw new Error('Missing ecom identifiers')
+    }
+
+    await this.data.patchProduct(product._id, {
+      [`store_status.${this.storeId}.${condition}.ecom_pid`]: internalId,
+      [`store_status.${this.storeId}.${condition}.ecom_vid`]: internalVariantId
+    })
+  }
+
+  async processEComCSV(results: any) {
+    const products = results.data ?? []
+    const batchSize = 10
+
+    await this.processInBatches(products, batchSize, async (product: any, index: number) => {
+      let category = product['EN_Category_3']
+      if (category !== 'Single Cards') {
+        return { skipped: true }
+      }
+
+      let name = product['EN_Title_Long']
+      let condition = 'near_mint'
+      let found = false
+      let updated = false
+      if (name.endsWith('(LP)')) {
+        condition = 'lightly_played'
+        name = name.slice(0, -5)
+      } else if (name.endsWith('(MP)')) {
+        condition = 'moderately_played'
+        name = name.slice(0, -5)
+      } else if (name.endsWith('(HP)')) {
+        condition = 'heavily_played'
+        name = name.slice(0, -5)
+      } else if (name.endsWith('(DMG)')) {
+        condition = 'damaged'
+        name = name.slice(0, -6)
+      }
+
+      if (!found) {
+        const byIds = await this.data.getProductByEComIDs(
+          this.storeId,
+          condition,
+          product.Internal_ID,
+          product.Internal_Variant_ID
+        )
+        if (byIds.total === 1) {
+          found = true
+        }
+      }
+      if (!found) {
+        const bySystemId = await this.data.getProductByPOSId(
+          product.manufacturer_sku,
+          this.storeId,
+          condition
+        )
+
+        if (bySystemId.total === 1) {
+          found = true
+          updated = true
+          let foundProduct = bySystemId.data[0]
+          await this.data.patchProduct(foundProduct._id, {
+            [`store_status.${this.storeId}.${condition}.ecom_pid`]: product['Internal_ID'],
+            [`store_status.${this.storeId}.${condition}.ecom_vid`]: product['Internal_Variant_ID']
+          })
+        }
+      }
+      if (!found) {
+        const byName = await this.data.getProduct({
+          name: name
+        })
+        if (byName.total === 1) {
+          found = true
+          updated = true
+          let foundProduct = byName.data[0]
+          await this.data.patchProduct(foundProduct._id, {
+            [`store_status.${this.storeId}.${condition}.ecom_pid`]: product['Internal_ID'],
+            [`store_status.${this.storeId}.${condition}.ecom_vid`]: product['Internal_Variant_ID']
+          })
+        }
+      }
+
+      if (!found) {
+        return {
+          skipped: true,
+          unmatched: this.createUnmatchedRow('ecom', index, {
+            name,
+            category,
+            condition,
+            internalId: product.Internal_ID ?? '',
+            internalVariantId: product.Internal_Variant_ID ?? '',
+            manufacturerSku: product.manufacturer_sku ?? '',
+            reason: 'no_match'
+          })
+        }
+      }
+
+      return { matched: true, updated }
+    })
+
+    this.finalizeProcessing(
+      `ECom CSV processing complete. Updated ${this.updatedRows}, skipped ${this.skippedRows}, errors ${this.errorRows}.`
+    )
   }
   getExchangeRate(price: number) {
     if (price == -1) {
       return -1
     } else {
-      return price * this.CAD
+      return this.currency.convert(price)
     }
   }
 
@@ -493,145 +1021,161 @@ export class ManageTCGProductsComponent implements OnInit {
   }
 
   async processRetailCSV(results: any) {
-    console.time('processing retail json object')
-    const products = results.data
+    const products = results.data ?? []
     const priceChanges: {}[] = []
-    const noMatch: {}[] = []
-    console.log(products)
+    const batchSize = 10
 
-    await Promise.all(
-      products.map(async (product: any) => {
-        try {
-          let name = product.Item || product.Description || product['Item Description']
-          let systemId = product['System ID'] || product['Item System ID']
-          let quantity = product['Qty.'] || product['Item Metrics Quantity On Hand']
-          let cost = Number(product['Item Avg Cost']) || null
-          let price = product['Price']
-            ? Number(product['Price'].replace('$', ''))
-            : Number(product['Item Metrics Price'])
+    await this.processInBatches(products, batchSize, async (product: any, index: number) => {
+      let name = product.Item || product.Description || product['Item Description']
+      let systemId = product['System ID'] || product['Item System ID']
+      let quantity = product['Qty.'] || product['Item Metrics Quantity On Hand']
+      let cost = Number(product['Item Avg Cost']) || null
+      let price = product['Price']
+        ? Number(product['Price'].replace('$', ''))
+        : Number(product['Item Metrics Price'])
 
-          let condition = 'near_mint'
-          if (name.endsWith('(LP)')) {
-            condition = 'lightly_played'
-            name = name.slice(0, -5) // Remove ' (LP)' from the end
-          } else if (name.endsWith('(MP)')) {
-            condition = 'moderately_played'
-            name = name.slice(0, -5) // Remove ' (MP)' from the end
-          } else if (name.endsWith('(HP)')) {
-            condition = 'heavily_played'
-            name = name.slice(0, -5) // Remove ' (HP)' from the end
-          } else if (name.endsWith('(DMG)')) {
-            condition = 'damaged'
-            name = name.slice(0, -6) // Remove ' (DMG)' from the end
-          }
+      let condition = 'near_mint'
+      if (name.endsWith('(LP)')) {
+        condition = 'lightly_played'
+        name = name.slice(0, -5)
+      } else if (name.endsWith('(MP)')) {
+        condition = 'moderately_played'
+        name = name.slice(0, -5)
+      } else if (name.endsWith('(HP)')) {
+        condition = 'heavily_played'
+        name = name.slice(0, -5)
+      } else if (name.endsWith('(DMG)')) {
+        condition = 'damaged'
+        name = name.slice(0, -6)
+      }
 
-          const data = await this.data.getProductByPOSId(systemId, this.storeId, condition)
-          if (data.total === 1) {
-            //found by System ID
-            console.log('foundbysysid')
+      const data = await this.data.getProductByPOSId(systemId, this.storeId, condition)
+      if (data.total === 1) {
+        const oldPrice = price
+        let newPrice = this.retailPrice(this.getExchangeRate(data.data[0].market_price))
+        newPrice = this.adjustPriceForCondition(newPrice, condition)
 
-            const oldPrice = price
-            let newPrice = this.retailPrice(this.getExchangeRate(data.data[0].market_price))
-            newPrice = this.adjustPriceForCondition(newPrice, condition)
-
-            let patchBody = {
-              [`store_status.${this.storeId}.${condition}.selling.enabled`]: true,
-              [`store_status.${this.storeId}.${condition}.selling.quantity`]: parseInt(quantity)
-            }
-
-            if (cost !== null) {
-              patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
-            }
-
-            await this.data.patchProduct(data.data[0]._id, patchBody)
-            console.log(data.data[0].store_status[this.storeId][condition].average_cost)
-
-            if (parseInt(quantity) >= 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
-              priceChanges.push({
-                systemId: systemId,
-                manufacturer_sku: systemId,
-                description: `${data.data[0].name}${this.conditionSuffix(condition)}`,
-                qty: quantity,
-                rarity: data.data[0].rarity,
-                average_cost: data.data[0].store_status[this.storeId][condition].average_cost,
-                price: oldPrice,
-                msrp: oldPrice,
-                new_price: this.round(newPrice),
-                online_price: this.round(newPrice),
-                change: `${((oldPrice - newPrice) / oldPrice) * 100}%`,
-                condition
-              })
-            }
-          } else if (data.total === 0) {
-            const nameData = await this.data.getProduct({
-              name: name
-            })
-            if (nameData.total === 1) {
-              // Found by name
-              console.log(`Name match successful`)
-
-              let newPrice = this.retailPrice(this.getExchangeRate(nameData.data[0].market_price))
-              const oldPrice = price
-              newPrice = this.adjustPriceForCondition(newPrice, condition)
-
-              let patchBody = {
-                [`store_status.${this.storeId}.${condition}.pos_id`]: systemId,
-                [`store_status.${this.storeId}.${condition}.selling.enabled`]: true
-              }
-
-              if (cost !== null) {
-                patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
-              }
-
-              patchBody[`store_status.${this.storeId}.${condition}.selling.quantity`] = parseInt(quantity)
-
-              await this.data.patchProduct(nameData.data[0]._id, patchBody)
-
-              console.log(nameData.data[0].store_status[this.storeId][condition].average_cost)
-              if (parseInt(quantity) > 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
-                priceChanges.push({
-                  systemId: systemId,
-                  manufacturer_sku: systemId,
-                  description: `${nameData.data[0].name}${this.conditionSuffix(condition)}`,
-                  qty: quantity,
-                  rarity: nameData.data[0].rarity,
-                  average_cost: nameData.data[0].store_status[this.storeId][condition].average_cost,
-                  price: oldPrice,
-                  msrp: oldPrice,
-                  new_price: this.round(newPrice),
-                  online_price: this.round(newPrice),
-                  change: `${((oldPrice - newPrice) / oldPrice) * 100}%`,
-                  condition
-                })
-              }
-            } else if (nameData.total === 0) {
-              console.log(`Name match failed for ${name}`)
-              noMatch.push(product)
-            } else {
-              //multiple matches
-              console.log('multiple on name')
-              data.data.forEach((element: { name: any }) => {
-                console.log(`Duplicate value found from search on name: ${element.name} `)
-              })
-            }
-          } else {
-            //multiple matches
-            data.data.forEach((element: { name: any }) => {
-              console.log(`Duplicate value found from search on SystemID: ${element.name} `)
-            })
-          }
-        } catch (error) {
-          console.error('Error processing product:', product, error)
+        let patchBody = {
+          [`store_status.${this.storeId}.${condition}.selling.enabled`]: true,
+          [`store_status.${this.storeId}.${condition}.selling.quantity`]: parseInt(quantity)
         }
-      })
-    )
 
-    for (const no of noMatch) {
-      console.log('no Match:', no)
-    }
-    console.timeEnd('processing retail json object')
+        if (cost !== null) {
+          patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
+        }
+
+        await this.data.patchProduct(data.data[0]._id, patchBody)
+
+        if (parseInt(quantity) >= 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
+          priceChanges.push({
+            systemId: systemId,
+            manufacturer_sku: systemId,
+            description: `${data.data[0].name}${this.conditionSuffix(condition)}`,
+            qty: quantity,
+            rarity: data.data[0].rarity,
+            average_cost: data.data[0].store_status[this.storeId][condition].average_cost,
+            price: oldPrice,
+            msrp: oldPrice,
+            new_price: this.round(newPrice),
+            online_price: this.round(newPrice),
+            change: `${((oldPrice - newPrice) / oldPrice) * 100}%`,
+            condition
+          })
+        }
+
+        return { matched: true, updated: true }
+      }
+
+      if (data.total === 0) {
+        const nameData = await this.data.getProduct({
+          name: name
+        })
+        if (nameData.total === 1) {
+          let newPrice = this.retailPrice(this.getExchangeRate(nameData.data[0].market_price))
+          const oldPrice = price
+          newPrice = this.adjustPriceForCondition(newPrice, condition)
+
+          let patchBody = {
+            [`store_status.${this.storeId}.${condition}.pos_id`]: systemId,
+            [`store_status.${this.storeId}.${condition}.selling.enabled`]: true
+          }
+
+          if (cost !== null) {
+            patchBody[`store_status.${this.storeId}.${condition}.average_cost`] = cost
+          }
+
+          patchBody[`store_status.${this.storeId}.${condition}.selling.quantity`] = parseInt(quantity)
+
+          await this.data.patchProduct(nameData.data[0]._id, patchBody)
+
+          if (parseInt(quantity) > 0 && Math.abs(newPrice - oldPrice) > oldPrice * 0.05) {
+            priceChanges.push({
+              systemId: systemId,
+              manufacturer_sku: systemId,
+              description: `${nameData.data[0].name}${this.conditionSuffix(condition)}`,
+              qty: quantity,
+              rarity: nameData.data[0].rarity,
+              average_cost: nameData.data[0].store_status[this.storeId][condition].average_cost,
+              price: oldPrice,
+              msrp: oldPrice,
+              new_price: this.round(newPrice),
+              online_price: this.round(newPrice),
+              change: `${((oldPrice - newPrice) / oldPrice) * 100}%`,
+              condition
+            })
+          }
+
+          return { matched: true, updated: true }
+        }
+
+        if (nameData.total === 0) {
+          return {
+            skipped: true,
+            unmatched: this.createUnmatchedRow('retail', index, {
+              name,
+              systemId,
+              condition,
+              quantity,
+              cost,
+              price,
+              reason: 'no_match'
+            })
+          }
+        }
+
+        return {
+          skipped: true,
+          unmatched: this.createUnmatchedRow('retail', index, {
+            name,
+            systemId,
+            condition,
+            quantity,
+            cost,
+            price,
+            reason: 'multiple_name_matches'
+          })
+        }
+      }
+
+      return {
+        skipped: true,
+        unmatched: this.createUnmatchedRow('retail', index, {
+          name,
+          systemId,
+          condition,
+          quantity,
+          cost,
+          price,
+          reason: 'multiple_pos_matches'
+        })
+      }
+    })
+
     const csv = Papa.unparse(priceChanges)
     this.downloadBlob(csv, 'tcg_prices.csv', 'text/csv;charset=utf-8')
+    this.finalizeProcessing(
+      `Retail CSV processing complete. Updated ${this.updatedRows}, skipped ${this.skippedRows}, errors ${this.errorRows}.`
+    )
   }
 
   downloadBlob(content: any, filename: string, contentType: string) {
@@ -651,7 +1195,11 @@ export class ManageTCGProductsComponent implements OnInit {
     if (data.total !== 0) {
       const jsonArray = await this.processProducts(data.data, this.storeId, this.newOnlyForSet)
       const csv = Papa.unparse(jsonArray)
-      this.downloadBlob(csv, 'tcg_prices_set.csv', 'text/csv;charset=utf-8')
+      this.downloadBlob(
+        csv,
+        this.applyCurrencySuffix('tcg_prices_set.csv'),
+        'text/csv;charset=utf-8'
+      )
     }
   }
 
@@ -661,7 +1209,27 @@ export class ManageTCGProductsComponent implements OnInit {
     if (data.total !== 0) {
       const jsonArray = await this.processProducts(data.data, this.storeId, this.newOnlyForGame)
       const csv = Papa.unparse(jsonArray)
-      this.downloadBlob(csv, 'tcg_prices_game.csv', 'text/csv;charset=utf-8')
+      this.downloadBlob(
+        csv,
+        this.applyCurrencySuffix('tcg_prices_game.csv'),
+        'text/csv;charset=utf-8'
+      )
+    }
+  }
+
+  async exportSellingByGameWithPosId() {
+    const data = await this.data.getSellingForGameWithPosId(this.selectedGame, this.storeId)
+    if (data.total !== 0) {
+      const jsonArray = await this.processProducts(data.data, this.storeId, false, {
+        includeZeroQty: true,
+        requirePosId: true
+      })
+      const csv = Papa.unparse(jsonArray)
+      this.downloadBlob(
+        csv,
+        this.applyCurrencySuffix('tcg_prices_game_with_pos.csv'),
+        'text/csv;charset=utf-8'
+      )
     }
   }
 
@@ -670,11 +1238,38 @@ export class ManageTCGProductsComponent implements OnInit {
     if (data.total !== 0) {
       const jsonArray = await this.processProducts(data.data, this.storeId, false)
       const csv = Papa.unparse(jsonArray)
-      this.downloadBlob(csv, 'tcg_prices_all.csv', 'text/csv;charset=utf-8')
+      this.downloadBlob(
+        csv,
+        this.applyCurrencySuffix('tcg_prices_all.csv'),
+        'text/csv;charset=utf-8'
+      )
     }
   }
 
-  async processProducts(products: any[], storeId: string, newOnly: boolean) {
+  async exportSellingWithPosId() {
+    const data = await this.data.getSellingWithPosId(this.storeId)
+    if (data.total !== 0) {
+      const jsonArray = await this.processProducts(data.data, this.storeId, false, {
+        includeZeroQty: true,
+        requirePosId: true
+      })
+      const csv = Papa.unparse(jsonArray)
+      this.downloadBlob(
+        csv,
+        this.applyCurrencySuffix('tcg_prices_all_with_pos.csv'),
+        'text/csv;charset=utf-8'
+      )
+    }
+  }
+
+  async processProducts(
+    products: any[],
+    storeId: string,
+    newOnly: boolean,
+    options: ProcessProductsOptions = {}
+  ) {
+    const includeZeroQty = options.includeZeroQty ?? false
+    const requirePosId = options.requirePosId ?? false
     return Promise.all(
       products.map(async (product: any) => {
         console.log(product)
@@ -749,6 +1344,7 @@ export class ManageTCGProductsComponent implements OnInit {
           object.image_URL = product.image_url
           object.condition = condition
           object.google_product_category = '6997'
+          object.currency = this.currency.currentCurrency
 
           return object
         }
@@ -776,11 +1372,18 @@ export class ManageTCGProductsComponent implements OnInit {
         // For non-Single Cards:
         if (product.type !== 'Single Cards') {
           const status = product.store_status?.[storeId]?.near_mint
+          if (requirePosId && !status?.pos_id) {
+            return []
+          }
           // Filter out items with pos_id if newOnly is true
           if (newOnly && status?.pos_id) {
             return [] // Skip items with a pos_id if newOnly is enabled
           }
-          if (status && status.selling.enabled && status.selling.quantity > 0) {
+          if (
+            status &&
+            status.selling.enabled &&
+            (includeZeroQty || status.selling.quantity > 0)
+          ) {
             return [await createObject('near_mint', status)]
           }
           return []
@@ -793,11 +1396,18 @@ export class ManageTCGProductsComponent implements OnInit {
 
           for (const condition of conditions) {
             const status = product.store_status?.[storeId]?.[condition]
+            if (requirePosId && !status?.pos_id) {
+              continue
+            }
             // Filter out conditions with pos_id if newOnly is true
             if (newOnly && status?.pos_id) {
               continue // Skip this condition if pos_id is present and newOnly is true
             }
-            if (status && status.selling.enabled && status.selling.quantity > 0) {
+            if (
+              status &&
+              status.selling.enabled &&
+              (includeZeroQty || status.selling.quantity > 0)
+            ) {
               const obj = await createObject(condition, status)
               result.push(obj)
             }
@@ -877,17 +1487,22 @@ export class ManageTCGProductsComponent implements OnInit {
     return products.map((product: any) => {
       const nearMint = this.getStoreCondition(product, 'near_mint')
       const events = Array.isArray(product.event_types) ? product.event_types : []
+      const currency = this.currency.currentCurrency
+      const marketPrice = this.currency.convert(product.market_price ?? 0)
+      const lowPrice = this.currency.convert(product.low_price ?? 0)
+      const midPrice = this.currency.convert(product.mid_price ?? 0)
+      const highPrice = this.currency.convert(product.high_price ?? 0)
 
       return {
         name: product.name ?? '',
         collector_number: product.collector_number ?? '',
         rarity: product.rarity ?? '',
         print: product.print ?? '',
-  finish: product.finish ?? '',
-        market_price: product.market_price ?? '',
-        low_price: product.low_price ?? '',
-        mid_price: product.mid_price ?? '',
-        high_price: product.high_price ?? '',
+        finish: product.finish ?? '',
+        market_price: this.round(marketPrice),
+        low_price: this.round(lowPrice),
+        mid_price: this.round(midPrice),
+        high_price: this.round(highPrice),
         event_types: events.join('|'),
         is_promo: events.includes('promo') ? 'yes' : 'no',
         is_pre_release: events.includes('pre_release') ? 'yes' : 'no',
@@ -899,7 +1514,8 @@ export class ManageTCGProductsComponent implements OnInit {
         store_selling_enabled: nearMint.selling?.enabled ?? false,
         store_selling_quantity: nearMint.selling?.quantity ?? 0,
         store_buying_enabled: nearMint.buying?.enabled ?? false,
-        store_buying_quantity: nearMint.buying?.quantity ?? 0
+        store_buying_quantity: nearMint.buying?.quantity ?? 0,
+        currency
       }
     })
   }
@@ -919,20 +1535,28 @@ export class ManageTCGProductsComponent implements OnInit {
 
   private resolveExportFilename() {
     if (this.currentSearchTerm) {
-      return `search_${this.sanitizeFileName(this.currentSearchTerm)}.csv`
+      return this.applyCurrencySuffix(`search_${this.sanitizeFileName(this.currentSearchTerm)}.csv`)
     }
 
     if (this.selectedSet) {
       const setName = this.sets.find((set) => set._id === this.selectedSet)?.name ?? this.selectedSet
-      return `set_${this.sanitizeFileName(setName)}.csv`
+      return this.applyCurrencySuffix(`set_${this.sanitizeFileName(setName)}.csv`)
     }
 
     if (this.selectedGame) {
       const gameName = this.games.find((game) => game._id === this.selectedGame)?.name ?? this.selectedGame
-      return `game_${this.sanitizeFileName(gameName)}.csv`
+      return this.applyCurrencySuffix(`game_${this.sanitizeFileName(gameName)}.csv`)
     }
 
-    return `products_${Date.now()}.csv`
+    return this.applyCurrencySuffix(`products_${Date.now()}.csv`)
+  }
+
+  private applyCurrencySuffix(filename: string) {
+    const suffix = this.currency.currentCurrency.toLowerCase()
+    if (filename.endsWith('.csv')) {
+      return filename.replace(/\.csv$/i, `_${suffix}.csv`)
+    }
+    return `${filename}_${suffix}`
   }
 
   async exportResults() {
@@ -1067,4 +1691,43 @@ export class ManageTCGProductsComponent implements OnInit {
   round(value: number) {
     return Number(Math.round(Number(value + 'e' + 2)) + 'e-' + 2)
   }
+}
+
+interface ProcessResult {
+  matched?: boolean
+  updated?: boolean
+  skipped?: boolean
+  unmatched?: UnmatchedRow
+  error?: boolean
+}
+
+interface UnmatchedRow {
+  id: string
+  importType: 'retail' | 'ecom'
+  row: number
+  name?: string
+  systemId?: string
+  condition?: string
+  internalId?: string
+  internalVariantId?: string
+  manufacturerSku?: string
+  category?: string
+  quantity?: string | number
+  cost?: number | null
+  price?: number | null
+  reason: string
+  status: 'unmatched' | 'resolving' | 'failed'
+  createdAt: string
+  lastUpdatedAt?: string
+}
+
+interface ResolveResult {
+  matched: boolean
+  updated?: boolean
+  reason?: string
+}
+
+interface ProcessProductsOptions {
+  includeZeroQty?: boolean
+  requirePosId?: boolean
 }

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, catchError, delay, distinctUntilChanged, from, map, switchMap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, distinctUntilChanged, from, map, switchMap } from 'rxjs';
 import { User } from '../../shared/models/user.model';
 import { FeathersService } from '../api/feathers.service';
 import { Router } from '@angular/router';
@@ -9,12 +9,14 @@ import { Store } from '../../shared/models/store.model';
   providedIn: 'root'
 })
 export class AuthService {
-  private currentUserSubject = new BehaviorSubject<User | null>({} as User);
+  private currentUserSubject = new BehaviorSubject<AuthPayload | null>(null);
   public currentUser = this.currentUserSubject
     .asObservable()
     .pipe(distinctUntilChanged())
 
-  public isAuthenticated = this.currentUser.pipe(map((user) => !!user))
+  public isAuthenticated = this.currentUser.pipe(map((auth) => !!auth?.user))
+
+  private refreshTimeout: number | null = null
 
   constructor(private _feathers: FeathersService, private router: Router) { }
 
@@ -22,10 +24,7 @@ export class AuthService {
     let withStrategy = { strategy: 'local', ...credentials}
     return from(this._feathers.authenticate(withStrategy)).pipe(
       map((data: any) => {
-        this.setAuth({
-          token: data.accessToken,
-          ...data.user
-        });
+        this.setAuth(data);
         return data.user
       }))
   }
@@ -39,15 +38,11 @@ export class AuthService {
 
   return from(this._feathers.service('users').create(newUser)as Promise <User>).pipe(
       switchMap((user: User) => {
-        this.logIn(newUser)
         return from(this._feathers.service('stores').create({ name: userData.storeName, admin_id: user._id }) as Promise<Store>).pipe(
           switchMap((store: Store) => {
             return from(
               this._feathers.service('users').patch(user._id, { store_id: store._id })).pipe(
-              map(() => {
-                this.setAuth(user);
-                return user;
-              }),
+              switchMap(() => this.logIn(newUser)),
               catchError((error)=> {
                 throw error;
               })
@@ -63,24 +58,74 @@ export class AuthService {
     void this.router.navigate(["/login"])
   }
 
-  reauthenticate():void{
-      this._feathers.reauthentictate({
+  async reauthenticate(): Promise<AuthPayload> {
+    try {
+      const data = await this._feathers.reauthentictate({
         strategy: 'local',
         accessToken: window.localStorage.getItem('feathers-jwt') || null
-      }).then(
-        (data: User) => {this.setAuth(data)
-        }
-      ).catch((err: any) => {
-        this.logout()
       })
-    
+      this.setAuth(data)
+      return data
+    } catch (err: any) {
+      this.logout()
+      throw err
+    }
   }
 
-  public setAuth(user: User): void{
-    this.currentUserSubject.next(user)
+  public setAuth(auth: AuthPayload): void{
+    this.currentUserSubject.next(auth)
+    this.scheduleSessionRefresh(auth?.accessToken)
   }
 
   public purgeAuth(): void{
     this.currentUserSubject.next(null)
+    this.clearRefreshTimeout()
   }
+
+  private scheduleSessionRefresh(accessToken?: string) {
+    this.clearRefreshTimeout()
+    const token = accessToken || window.localStorage.getItem('feathers-jwt') || ''
+    const payload = this.decodeJwtPayload(token)
+    const exp = payload?.exp
+    if (!exp) {
+      return
+    }
+    const refreshAt = exp * 1000 - Date.now() - 60000
+    const delay = Math.max(refreshAt, 0)
+    this.refreshTimeout = window.setTimeout(() => {
+      this.reauthenticate().catch(() => undefined)
+    }, delay)
+  }
+
+  private clearRefreshTimeout() {
+    if (this.refreshTimeout !== null) {
+      window.clearTimeout(this.refreshTimeout)
+      this.refreshTimeout = null
+    }
+  }
+
+  private decodeJwtPayload(token: string): { exp?: number } | null {
+    if (!token) {
+      return null
+    }
+    const parts = token.split('.')
+    if (parts.length < 2) {
+      return null
+    }
+    try {
+      const payload = parts[1]
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+      const decoded = JSON.parse(atob(payload))
+      return decoded
+    } catch (error) {
+      console.error('Failed to decode JWT', error)
+      return null
+    }
+  }
+}
+
+interface AuthPayload {
+  accessToken?: string
+  user: User
 }

@@ -1,0 +1,14 @@
+.currency-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.currency-toggle__field {
+  min-width: 140px;
+}
+
+.currency-toggle__meta {
+  font-size: 0.75rem;
+  color: #5f5f5f;
+}

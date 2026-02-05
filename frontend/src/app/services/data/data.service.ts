@@ -152,6 +152,40 @@ export class DataService {
 
     return this._feathers.service('products').find({ query: query })
   }
+
+  getSellingWithPosId(storeId: string) {
+    let query: Query = {
+      $or: [
+        {
+          [`store_status.${storeId}.near_mint.selling.enabled`]: true,
+          [`store_status.${storeId}.near_mint.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.lightly_played.selling.enabled`]: true,
+          [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.moderately_played.selling.enabled`]: true,
+          [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.heavily_played.selling.enabled`]: true,
+          [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.damaged.selling.enabled`]: true,
+          [`store_status.${storeId}.damaged.pos_id`]: { $exists: true, $ne: '' }
+        }
+      ],
+      $limit: 20000,
+      $sort: {
+        sort_number: 1,
+        'external_id.tcgcsv_group_id': 1
+      }
+    }
+
+    return this._feathers.service('products').find({ query: query })
+  }
   getSellingForSet(setId: string, storeId: string, newProductsOnly: boolean) {
     let query: Query = {
       set_id: setId,
@@ -246,6 +280,43 @@ export class DataService {
         }
       ]
     }
+    return this._feathers.service('products').find({
+      query: query
+    })
+  }
+
+  getSellingForGameWithPosId(gameId: string, storeId: string) {
+    let query: Query = {
+      game_id: gameId,
+      $or: [
+        {
+          [`store_status.${storeId}.near_mint.selling.enabled`]: true,
+          [`store_status.${storeId}.near_mint.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.lightly_played.selling.enabled`]: true,
+          [`store_status.${storeId}.lightly_played.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.moderately_played.selling.enabled`]: true,
+          [`store_status.${storeId}.moderately_played.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.heavily_played.selling.enabled`]: true,
+          [`store_status.${storeId}.heavily_played.pos_id`]: { $exists: true, $ne: '' }
+        },
+        {
+          [`store_status.${storeId}.damaged.selling.enabled`]: true,
+          [`store_status.${storeId}.damaged.pos_id`]: { $exists: true, $ne: '' }
+        }
+      ],
+      $limit: 10000,
+      $sort: {
+        sort_number: 1,
+        'external_id.tcgcsv_group_id': 1
+      }
+    }
+
     return this._feathers.service('products').find({
       query: query
     })

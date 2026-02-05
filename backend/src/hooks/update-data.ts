@@ -715,14 +715,18 @@ const processProductsAndPrices = async (context: HookContext) => {
           newProduct.name += ' (Revision Pack)'
         }
 
-        const keyExists = existingProductsMap.has(productKey) || newProductsMap.has(productKey)
-        if (!keyExists) {
-          if (newProduct.name.includes('DON!! Card') && setData) {
-            let code = setData.code && setData.code !== '' ? setData.code : setData.name
-            if (code) {
-              newProduct.name += ` (${code})`
+        if (newProduct.name.includes('DON!! Card') && setData) {
+          let code = setData.code && setData.code !== '' ? setData.code : setData.name
+          if (code) {
+            const suffix = ` (${code})`
+            if (!newProduct.name.includes(suffix)) {
+              newProduct.name += suffix
             }
           }
+        }
+
+        const keyExists = existingProductsMap.has(productKey) || newProductsMap.has(productKey)
+        if (!keyExists) {
           localNewProducts.push(newProduct)
           newProductsMap.set(productKey, true)
           batchDuplicates.set(productKey, (batchDuplicates.get(productKey) || 0) + 1)

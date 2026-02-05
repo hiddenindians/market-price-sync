@@ -18,6 +18,7 @@ import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/p
 import { MatSlideToggle, MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle'
 import { MatInputModule } from '@angular/material/input'
 import { MatCardModule } from '@angular/material/card';
+import { CurrencyService } from '../../services/currency/currency.service'
 @Component({
   selector: 'app-data-table',
   standalone: true,
@@ -45,6 +46,8 @@ export class DataTableComponent implements OnChanges {
   @Input() data: any[] = []
   @Input() displayedColumns: string[] = []
   @Input() totalLength: number = 0
+  @Input() gameLookup: Record<string, string> = {}
+  @Input() setLookup: Record<string, string> = {}
   @Output() page: EventEmitter<PageEvent> = new EventEmitter<PageEvent>()
   dataSource: MatTableDataSource<any>
   @ViewChild(MatPaginator) paginator!: MatPaginator
@@ -70,7 +73,7 @@ export class DataTableComponent implements OnChanges {
     // Add more mappings as needed
   }
 
-  constructor() {
+  constructor(private currency: CurrencyService) {
     this.dataSource = new MatTableDataSource()
     
   }
@@ -88,6 +91,14 @@ export class DataTableComponent implements OnChanges {
   }
   getNestedValue(element: any, path: string): any {
     return path.split('.').reduce((acc, part) => acc && acc[part], element)
+  }
+
+  getGameName(gameId: string): string {
+    return this.gameLookup?.[gameId] ?? gameId ?? ''
+  }
+
+  getSetName(setId: string): string {
+    return this.setLookup?.[setId] ?? setId ?? ''
   }
 
   sortData(event: any) {
@@ -171,6 +182,10 @@ console.log(element.store_status[this.objectKeys(element.store_status)[0]][condi
   }
 
   calculateBuylistPrice(marketPrice: number): number {
-    return marketPrice * 0.6;
+    return this.currency.convert(marketPrice * 0.6);
+  }
+
+  displayPrice(price: number): number {
+    return this.currency.convert(price);
   }
 }

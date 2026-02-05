@@ -34,7 +34,7 @@ export class AppComponent {
   sidenavOpen = true
 
   ngOnInit() {
-    this.auth.reauthenticate()
+    void this.auth.reauthenticate()
   }
 
   toggleSidenav() {

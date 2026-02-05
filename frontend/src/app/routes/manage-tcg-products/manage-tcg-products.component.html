@@ -1,21 +1,190 @@
 <div class="game-set-select-container">
   <mat-card class="action-bar">
     <div class="action-bar__row">
-      <button type="button" mat-stroked-button color="accent" (click)="retailFileInput.click()">Upload Lightspeed (R-Series)</button>
+      <button
+        type="button"
+        mat-stroked-button
+        color="accent"
+        [disabled]="isProcessing"
+        (click)="retailFileInput.click()"
+      >
+        Upload Lightspeed (R-Series)
+      </button>
       <input hidden (change)="importRetailCSV($event)" #retailFileInput type="file" id="file">
 
-      <button type="button" mat-stroked-button color="accent" (click)="ecomFileInput.click()">Upload eCom (C-Series)</button>
+      <button
+        type="button"
+        mat-stroked-button
+        color="accent"
+        [disabled]="isProcessing"
+        (click)="ecomFileInput.click()"
+      >
+        Upload eCom (C-Series)
+      </button>
       <input hidden (change)="importEComCSV($event)" #ecomFileInput type="file" id="file">
+
+      <app-currency-toggle></app-currency-toggle>
 
       <button type="button" mat-stroked-button color="primary" (click)="exportSellingBySet()">Set CSV</button>
       <mat-checkbox #newOnlyForSet (change)="onNewOnlyToggle($event, 'set')">New Only</mat-checkbox>
 
       <button type="button" mat-stroked-button color="primary" (click)="exportSellingByGame()">Game CSV</button>
+      <button type="button" mat-stroked-button color="primary" (click)="exportSellingByGameWithPosId()">
+        Game CSV (POS ID)
+      </button>
       <mat-checkbox #newOnlyForGame (change)="onNewOnlyToggle($event, 'game')">New Only</mat-checkbox>
 
       <button type="button" mat-stroked-button color="primary" (click)="exportSelling()">All Selling CSV</button>
+      <button type="button" mat-stroked-button color="primary" (click)="exportSellingWithPosId()">
+        All Selling (POS ID) CSV
+      </button>
     </div>
   </mat-card>
+
+  <mat-card class="import-status" *ngIf="isProcessing || processingPhase === 'done'">
+    <div class="import-status__header">
+      <div class="import-status__title">
+        {{ processingType === 'retail' ? 'Retail CSV' : 'ECom CSV' }} Import
+      </div>
+      <div class="import-status__state">
+        {{ processingPhase === 'done' ? 'Complete' : processingPhase }}
+      </div>
+    </div>
+
+    <div class="import-status__row" *ngIf="processingPhase === 'parsing'">
+      <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+      <span>Parsing CSV file...</span>
+    </div>
+
+    <div class="import-status__row" *ngIf="processingPhase === 'processing'">
+      <mat-progress-bar mode="determinate" [value]="progressPercent"></mat-progress-bar>
+      <div class="import-status__meta">
+        {{ processedRows }} / {{ totalRows }} processed ({{ progressPercent }}%)
+      </div>
+    </div>
+
+    <div class="import-status__stats" *ngIf="processingPhase !== 'parsing'">
+      <span>Matched: {{ matchedRows }}</span>
+      <span>Updated: {{ updatedRows }}</span>
+      <span>Skipped: {{ skippedRows }}</span>
+      <span>Errors: {{ errorRows }}</span>
+    </div>
+
+    <div class="import-status__message" *ngIf="processingMessage">
+      {{ processingMessage }}
+    </div>
+  </mat-card>
+
+  <mat-card class="unmatched-panel" *ngIf="unmatchedRows.length">
+    <div class="unmatched-panel__header">
+      <div>
+        <div class="unmatched-panel__title">Unmatched Rows</div>
+        <div class="unmatched-panel__subtitle">Resolve or edit and retry.</div>
+      </div>
+      <div class="unmatched-panel__actions">
+        <button type="button" mat-stroked-button color="primary" (click)="downloadUnmatchedCsv()">
+          Download unmatched CSV
+        </button>
+        <button
+          type="button"
+          mat-stroked-button
+          (click)="showAllUnmatched = !showAllUnmatched"
+        >
+          {{ showAllUnmatched ? 'Show less' : 'Show all' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="unmatched-panel__note" *ngIf="!showAllUnmatched && unmatchedCount > unmatchedVisibleLimit">
+      Showing first {{ unmatchedVisibleLimit }} rows of {{ unmatchedCount }}.
+    </div>
+
+    <div class="unmatched-row" *ngFor="let row of visibleUnmatchedRows">
+      <div class="unmatched-row__meta">
+        <div>#{{ row.row }} · {{ row.importType.toUpperCase() }}</div>
+        <div class="unmatched-row__reason">{{ row.reason }}</div>
+      </div>
+
+      <div class="unmatched-row__fields">
+        <mat-form-field appearance="fill" class="unmatched-field">
+          <mat-label>Name</mat-label>
+          <input matInput [(ngModel)]="row.name" (ngModelChange)="onUnmatchedEdit(row)" />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill" class="unmatched-field">
+          <mat-label>Condition</mat-label>
+          <mat-select [(ngModel)]="row.condition" (selectionChange)="onUnmatchedEdit(row)">
+            <mat-option *ngFor="let option of conditionOptions" [value]="option">{{ option }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill" class="unmatched-field" *ngIf="row.importType === 'retail'">
+          <mat-label>System ID</mat-label>
+          <input matInput [(ngModel)]="row.systemId" (ngModelChange)="onUnmatchedEdit(row)" />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            (click)="copyToClipboard(row.systemId || '')"
+            aria-label="Copy system ID"
+          >
+            <mat-icon>content_copy</mat-icon>
+          </button>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill" class="unmatched-field" *ngIf="row.importType === 'ecom'">
+          <mat-label>Internal ID</mat-label>
+          <input matInput [(ngModel)]="row.internalId" (ngModelChange)="onUnmatchedEdit(row)" />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill" class="unmatched-field" *ngIf="row.importType === 'ecom'">
+          <mat-label>Internal Variant ID</mat-label>
+          <input matInput [(ngModel)]="row.internalVariantId" (ngModelChange)="onUnmatchedEdit(row)" />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill" class="unmatched-field" *ngIf="row.importType === 'ecom'">
+          <mat-label>Manufacturer SKU</mat-label>
+          <input matInput [(ngModel)]="row.manufacturerSku" (ngModelChange)="onUnmatchedEdit(row)" />
+        </mat-form-field>
+      </div>
+
+      <div class="unmatched-row__actions">
+        <button
+          type="button"
+          mat-stroked-button
+          color="primary"
+          [disabled]="row.status === 'resolving'"
+          (click)="retryUnmatched(row)"
+        >
+          Retry
+        </button>
+        <button
+          type="button"
+          mat-stroked-button
+          [disabled]="row.status === 'resolving'"
+          (click)="openProductPicker(row)"
+        >
+          Pick Product
+        </button>
+        <button type="button" mat-stroked-button (click)="dismissUnmatched(row)">Dismiss</button>
+        <span class="unmatched-row__status" *ngIf="row.status !== 'unmatched'">
+          {{ row.status }}
+        </span>
+      </div>
+    </div>
+  </mat-card>
+
+  <button
+    type="button"
+    mat-fab
+    color="primary"
+    class="back-to-top"
+    *ngIf="showBackToTop"
+    (click)="scrollToTop()"
+    aria-label="Return to top"
+  >
+    <mat-icon>arrow_upward</mat-icon>
+  </button>
 
   <mat-card class="product-filters-card">
     <form class="filters-inline">
@@ -137,6 +306,7 @@
   
     <!-- Data table component -->
     <app-data-table [totalLength]="totalLength" [data]="filteredProducts" [displayedColumns]="displayedColumns"
+      [gameLookup]="gameLookup" [setLookup]="setLookup"
       (sortChanged)="onSortChange($event)" (buyToggle)="onBuyToggle($event)" (sellToggle)="onSellToggle($event)"
       (page)="onPageChange($event)" (buyQuantity)="onBuyQuantityChange($event)" (sellQuantity)="onSellQuantityChange($event)">
     </app-data-table>

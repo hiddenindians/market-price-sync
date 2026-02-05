@@ -1,0 +1,42 @@
+<div class="dialog">
+  <h2>Pick Product</h2>
+
+  <div class="dialog__search">
+    <mat-form-field appearance="fill" class="dialog__input">
+      <mat-label>Search products</mat-label>
+      <input matInput [(ngModel)]="searchTerm" (keyup.enter)="search()" />
+    </mat-form-field>
+    <button type="button" mat-stroked-button color="primary" (click)="search()">
+      Search
+    </button>
+  </div>
+
+  <div class="dialog__status" *ngIf="isLoading">
+    <mat-progress-spinner diameter="20" mode="indeterminate"></mat-progress-spinner>
+    <span>Searching...</span>
+  </div>
+
+  <div class="dialog__error" *ngIf="!isLoading && errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <div class="dialog__results" *ngIf="!isLoading && results.length">
+    <div class="dialog__result" *ngFor="let product of results">
+      <div class="dialog__result-main">
+        <div class="dialog__result-name">{{ product.name }}</div>
+        <div class="dialog__result-meta">
+          <span>Rarity: {{ product.rarity || 'n/a' }}</span>
+          <span>Set: {{ product._resolvedSetName || 'n/a' }}</span>
+          <span>Game: {{ product._resolvedGameName || 'n/a' }}</span>
+        </div>
+      </div>
+      <button type="button" mat-stroked-button color="accent" (click)="selectProduct(product)">
+        Select
+      </button>
+    </div>
+  </div>
+
+  <div class="dialog__actions">
+    <button type="button" mat-button (click)="cancel()">Close</button>
+  </div>
+</div>

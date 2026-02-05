@@ -4,6 +4,40 @@ img {
   z-index: 1;         
 }
 
+.table-wrapper {
+  position: relative;
+}
+
+.table-paginator {
+  position: fixed;
+  bottom: 16px;
+  left: 224px;
+  right: 24px;
+  z-index: 1000;
+  background: #1f1f1f;
+  color: #f1f1f1;
+  box-shadow: 0 -8px 18px rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+}
+
+:host ::ng-deep .table-paginator .mat-mdc-paginator-range-label,
+:host ::ng-deep .table-paginator .mat-mdc-select-value,
+:host ::ng-deep .table-paginator .mat-mdc-icon-button,
+:host ::ng-deep .table-paginator .mat-mdc-select-value-text {
+  color: #f1f1f1;
+}
+
+:host ::ng-deep .table-paginator .mat-mdc-icon-button .mat-mdc-button-persistent-ripple::before {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 900px) {
+  .table-paginator {
+    left: 16px;
+    right: 16px;
+  }
+}
+
 img:hover {
   transform: scale(6) translateX(25px);
   z-index: 9999;     
@@ -29,6 +63,15 @@ img:hover {
   background-clip: text;
   -webkit-background-clip: text;
   animation: rainbowShift 6s ease infinite;
+}
+
+.expanded-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: #8a8a8a;
+  margin-top: 6px;
 }
 
 @keyframes rainbowShift {
