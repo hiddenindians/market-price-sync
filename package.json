@@ -1,4 +1,10 @@
 {
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r --parallel build",
+    "test": "pnpm -r --parallel test"
+  },
   "dependencies": {
     "feathers-reactive": "^0.11.0"
   }

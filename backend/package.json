@@ -36,6 +36,7 @@
   "main": "lib/client",
   "scripts": {
     "dev": "nodemon -x ts-node src/index.ts",
+    "build": "pnpm run compile",
     "compile": "shx rm -rf lib/ && tsc",
     "start": "node lib/",
     "prettier": "npx prettier \"**/*.ts\" --write",
@@ -62,6 +63,7 @@
     "@types/p-limit": "^2.2.0",
     "@types/socket.io-client": "^3.0.0",
     "express-session": "^1.18.0",
+    "koa": "^2.15.3",
     "mongodb": "^6.5.0",
     "p-limit": "3.1.0",
     "winston": "^3.13.0"
@@ -69,6 +71,7 @@
   "devDependencies": {
     "@feathersjs/cli": "^5.0.40",
     "@feathersjs/rest-client": "^5.0.40",
+    "@types/koa": "^2.15.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.12.7",
     "axios": "^1.7.2",
